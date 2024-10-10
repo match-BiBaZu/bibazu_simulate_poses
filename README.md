@@ -4,13 +4,13 @@ A Blender-based simulation tool designed to model and visualize workpieces being
 Steps to get it running:
 
 Install:
-Blender
-numpy-stl
-numpy
-mpl.toolkits.mplot3d.art3d
+  -Blender
+  -numpy-stl
+  -numpy
+  -mpl.toolkits.mplot3d.art3d
 
-Unzip:
-Surfaces
-Workpieces
-SimulationData
+Unzip (make sure to take them out of their zipped folders):
+  -Surfaces
+  -Workpieces
+  -SimulationData
 
