@@ -1,0 +1,9 @@
+-------------------------------------------
+Simulated_Data_Teil_1
+-------------------------------------------
+
+ITERATION: 1
+LAST FRAME: 1999
+Simulated Location (XYZ) [mm]: -2.6952, 8.4242, 15.5418
+Simulated Rotation Euler (XYZ) [°]: 180.0, -0.0, -47.5528
+Simulated Rotation Quaternion (w, x, y, z): 0.0, 0.9151, -0.4032, -0.0

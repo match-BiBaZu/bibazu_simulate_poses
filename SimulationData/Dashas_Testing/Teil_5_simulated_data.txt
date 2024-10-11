@@ -1,0 +1,57 @@
+-------------------------------------------
+Simulated_Data_Teil_5
+-------------------------------------------
+
+ITERATION: 1
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: 10.8415, 65.013, -172.0057
+Simulated Rotation Quaternion (w, x, y, z): 0.0079, 0.5392, -0.0422, -0.8411
+
+ITERATION: 2
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: -140.5761, 34.8152, -27.2616
+Simulated Rotation Quaternion (w, x, y, z): 0.3792, -0.8492, 0.3098, 0.1979
+
+ITERATION: 3
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: 74.0248, 47.908, -110.9614
+Simulated Rotation Quaternion (w, x, y, z): 0.2121, 0.5789, -0.2696, -0.7398
+
+ITERATION: 4
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: 0.3115, 75.2851, -160.1178
+Simulated Rotation Quaternion (w, x, y, z): 0.1351, 0.6019, 0.1033, -0.7802
+
+ITERATION: 5
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: -90.2576, -20.4459, -5.1167
+Simulated Rotation Quaternion (w, x, y, z): 0.688, -0.7023, -0.094, -0.1566
+
+ITERATION: 6
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: -18.7594, 110.5736, 135.5932
+Simulated Rotation Quaternion (w, x, y, z): 0.0883, -0.786, 0.2206, 0.5708
+
+ITERATION: 7
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: 15.9243, -92.0133, -35.196
+Simulated Rotation Quaternion (w, x, y, z): 0.6858, -0.1237, -0.7082, -0.113
+
+ITERATION: 8
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: -80.8813, -40.0002, -17.8846
+Simulated Rotation Quaternion (w, x, y, z): 0.672, -0.6426, -0.1624, -0.3303
+
+ITERATION: 9
+LAST FRAME: 505
+Simulated Location (XYZ) [mm]: 0.0, 0.0, -1569.3295
+Simulated Rotation Euler (XYZ) [°]: -127.4502, 9.6251, -131.1612
+Simulated Rotation Quaternion (w, x, y, z): 0.2509, -0.3356, 0.8289, -0.3706

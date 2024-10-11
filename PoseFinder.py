@@ -253,19 +253,23 @@ class PoseFinder:
             ax = fig.add_subplot(rows, cols, a, projection='3d')
             
             # Plot STL mesh using precomputed points and stored rotated points
-            ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors='k', facecolors=[0.6, 0.6, 0.6]))
+            ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors= 'k', facecolors=[0.6, 0.6, 0.6]))
 
             # Set consistent global axis limits
             ax.set_xlim([x_min, x_max])
             ax.set_ylim([y_min, y_max])
             ax.set_zlim([z_min, z_max])
             ax.set_title(f'Pose {unique_poses[a-1]}')  # Use the actual pose number
-            ax.axis('off')
+            #ax.axis('off')
+
+            # Optionally: Set axis labels for clarity
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.set_zlabel('Z')
 
         # Use tight_layout to remove unnecessary space between subplots
         plt.tight_layout()
         plt.show()
-
 
         # Figure 2: histogram of frequency of stable poses
         stable_poses_frequency, bin_edges = np.histogram(self.array_rotation_blend[:, 3], bins=np.arange(1, total_poses + 1))
