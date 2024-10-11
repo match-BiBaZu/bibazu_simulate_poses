@@ -209,48 +209,63 @@ class PoseFinder:
 
         # The overall number of poses
         total_poses =  int(np.max(self.array_quaternion_blend[:, 4]))
+
         # Figure 1: meshes of frequency of stable poses
-        fig = plt.figure(figsize=(12, 8))
-        
-        m = 1
-        a = 1
-    
-        num_poses = len(np.unique(self.array_rotation_blend[:, 3]))  # Assuming 4th column is the pose number
-        for i in range(len(self.array_rotation_blend)):
-            if self.array_rotation_blend[i, 3] == m:
-                
-                ax_angle = self.array_rotation_blend[i, 0]
-                ay_angle = self.array_rotation_blend[i, 1]
-                az_angle = self.array_rotation_blend[i, 2]
-                
-                # Get rotation matrix from Euler angles
-                rotm = self.euler_to_rot_matrix(ax_angle, ay_angle, az_angle)
-                
-                # Rotate points using the rotation matrix
-                pointsR = np.dot(points_stl, rotm.T)  # Equivalent to points * rotm in MATLAB
-                
-                # **Flip the Z-axis** to correct the upside-down issue
-                #pointsR[:, 2] = -pointsR[:, 2]  # Flip the Z-axis
-                
-                # Create 3D plot
-                ax = fig.add_subplot(num_poses // 2 + num_poses % 2, 4, a, projection='3d')
-                ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors='k', facecolors=[0.6, 0.6, 0.6]))
-                
-                # Set axis and plot limits
-                ax.set_xlim([np.min(pointsR[:, 0]), np.max(pointsR[:, 0])])
-                ax.set_ylim([np.min(pointsR[:, 1]), np.max(pointsR[:, 1])])
-                ax.set_zlim([np.min(pointsR[:, 2]), np.max(pointsR[:, 2])])
-                ax.set_title(f'Pose {m}')
-                ax.axis('off')
-                
-                # Adjust for next tile (next plot in the grid)
-                m += 1
-                if a % 2 == 1:
-                    a += 1
-                else:
-                    a += 3
-        
+        fig = plt.figure(figsize=(12, 8), constrained_layout=True)
+
+        # Step 1: Precompute all transformed points once to avoid recalculating
+        m_values = self.array_rotation_blend[:, 3]  # Pose numbers
+        unique_poses = np.unique(m_values)  # Get the unique poses
+        num_poses = len(unique_poses)  # Number of unique poses
+
+        rotated_points_by_pose = []
+        for m in unique_poses:
+            # Get rotation angles for the current pose
+            pose_indices = np.where(self.array_rotation_blend[:, 3] == m)[0]
+            ax_angle = self.array_rotation_blend[pose_indices[0], 0]
+            ay_angle = self.array_rotation_blend[pose_indices[0], 1]
+            az_angle = self.array_rotation_blend[pose_indices[0], 2]
+
+            # Compute rotation matrix once for the pose
+            rotm = self.euler_to_rot_matrix(ax_angle, ay_angle, az_angle)
+
+            # Rotate points using the rotation matrix (efficient matrix multiplication)
+            pointsR = np.dot(points_stl, rotm.T)  # Equivalent to points * rotm in MATLAB
+            
+            # Store the rotated points for later use
+            rotated_points_by_pose.append(pointsR)
+
+        # Step 2: Compute global axis limits across all poses
+        all_rotated_points = np.vstack(rotated_points_by_pose)  # Stack all rotated points into one array
+        x_min, x_max = np.min(all_rotated_points[:, 0]), np.max(all_rotated_points[:, 0])
+        y_min, y_max = np.min(all_rotated_points[:, 1]), np.max(all_rotated_points[:, 1])
+        z_min, z_max = np.min(all_rotated_points[:, 2]), np.max(all_rotated_points[:, 2])
+
+        # Calculate grid dimensions dynamically based on the number of poses
+        cols = 3  # Set a reasonable number of columns to make each plot larger
+        rows = int(np.ceil(num_poses / cols))
+
+        # Adjust figure size based on the number of subplots (increase for more subplots)
+        fig.set_size_inches(cols * 4, rows * 4)
+
+        # Step 3: Plot each pose using global limits, using precomputed rotated points
+        for a, pointsR in enumerate(rotated_points_by_pose, start=1):
+            ax = fig.add_subplot(rows, cols, a, projection='3d')
+            
+            # Plot STL mesh using precomputed points and stored rotated points
+            ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors='k', facecolors=[0.6, 0.6, 0.6]))
+
+            # Set consistent global axis limits
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([y_min, y_max])
+            ax.set_zlim([z_min, z_max])
+            ax.set_title(f'Pose {unique_poses[a-1]}')  # Use the actual pose number
+            ax.axis('off')
+
+        # Use tight_layout to remove unnecessary space between subplots
+        plt.tight_layout()
         plt.show()
+
 
         # Figure 2: histogram of frequency of stable poses
         stable_poses_frequency, bin_edges = np.histogram(self.array_rotation_blend[:, 3], bins=np.arange(1, total_poses + 1))
