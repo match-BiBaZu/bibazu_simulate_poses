@@ -148,44 +148,26 @@ for n in range(1, iterations):
     #------------------------------------------------------------------------
 
 
-    C = bpy.context
-    o = C.object
+    def print_simulated_loc_rot(scene):
+        C = bpy.context
+        o = C.object
 
-    simulated_loc = o.matrix_world.to_translation()  # Location as Vector
-    simulated_rot_euler = o.matrix_world.to_euler()  # Euler Angles in Radians (XYZ)
+        simulated_loc = o.matrix_world.to_translation()  # Location as Vector
+        simulated_rot_euler = o.matrix_world.to_euler()  # Euler Angles in Radians (XYZ)
+        
+        sim_rot_euler_degrees = [degrees(v) for v in simulated_rot_euler]  # Euler Angles in Degrees
+        sim_rot_quaternion = o.matrix_world.to_quaternion()  # Quaternion 
+
+        print_friendly_loc = [round(v, 5) for v in simulated_loc]
+        print_friendly_rot_euler_degrees = [round(v, 5) for v in sim_rot_euler_degrees]
+        print_friendly_rot_quaternion = [round(v, 5) for v in sim_rot_quaternion]
+
+        workpiece_data.writelines("Location: ", print_friendly_loc)
+        workpiece_data.writelines("Rotation EULER: ", print_friendly_rot_euler_degrees)
+        workpiece_data.writelines("Rotation QUATERNION: ", print_friendly_rot_quaternion)
     
-    sim_rot_euler_degrees = [degrees(v) for v in simulated_rot_euler]  # Euler Angles in Degrees
-    sim_rot_quaternion = o.matrix_world.to_quaternion()  # Quaternion 
-
-    print_friendly_loc = [round(v, 5) for v in simulated_loc]
-    print_friendly_rot_euler_degrees = [round(v, 5) for v in sim_rot_euler_degrees]
-    print_friendly_rot_quaternion = [round(v, 5) for v in sim_rot_quaternion]
-
-    workpiece_data.writelines("Location: "+ str(print_friendly_loc)+'\n')
-    workpiece_data.writelines("Rotation EULER: " + str(print_friendly_rot_euler_degrees)+'\n')
-    workpiece_data.writelines("Rotation QUATERNION: "+ str(print_friendly_rot_quaternion)+'\n')
-
-
-    # def print_simulated_loc_rot(scene):
-    #     C = bpy.context
-    #     o = C.object
-
-    #     simulated_loc = o.matrix_world.to_translation()  # Location as Vector
-    #     simulated_rot_euler = o.matrix_world.to_euler()  # Euler Angles in Radians (XYZ)
-        
-    #     sim_rot_euler_degrees = [degrees(v) for v in simulated_rot_euler]  # Euler Angles in Degrees
-    #     sim_rot_quaternion = o.matrix_world.to_quaternion()  # Quaternion 
-
-    #     print_friendly_loc = [round(v, 5) for v in simulated_loc]
-    #     print_friendly_rot_euler_degrees = [round(v, 5) for v in sim_rot_euler_degrees]
-    #     print_friendly_rot_quaternion = [round(v, 5) for v in sim_rot_quaternion]
-
-    #     workpiece_data.writelines("Location: ", print_friendly_loc)
-    #     workpiece_data.writelines("Rotation EULER: ", print_friendly_rot_euler_degrees)
-    #     workpiece_data.writelines("Rotation QUATERNION: ", print_friendly_rot_quaternion)
-        
-    # bpy.app.handlers.frame_change_post.append(print_simulated_loc_rot)
-
+    bpy.app.handlers.frame_change_post.append(print_simulated_loc_rot)
+    
     #----------------------------------------------------------------
     # 6. Export 'simulated location' and 'simulated rotation' as .txt
     #----------------------------------------------------------------

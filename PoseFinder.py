@@ -9,6 +9,9 @@ class PoseFinder:
     def __init__(self):
         # This is the current name of the workpiece
         self.workpiece_name = 'Teil_1'
+
+        # This is the total number of simulations - usually 1000
+        self.simulation_number = 1000
         
         # This is the current file path of the data stored relative to the script
         self.data_path = Path(__file__).parent / 'MHI_Data'
@@ -16,13 +19,7 @@ class PoseFinder:
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
-        # This is the loaded STL file of the workpiece
-        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.stl')))
         
-        # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_location = np.zeros((1000, 3))
-        self.array_rotation_blend = np.zeros((1000, 4))
-        self.array_quaternion_blend = np.zeros((1000, 5))
     
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
     def config(self, **kwargs):
@@ -33,6 +30,16 @@ class PoseFinder:
             self.data_path = kwargs['data_path']
         if 'workpiece_path' in kwargs:
             self.workpiece_path = kwargs['workpiece_path']
+        if 'simulation_number' in kwargs:
+            self.simulation_number = kwargs['simulation_number']
+        
+        # These are the arrays that are used to store the stable orientations determined by the simulations
+        self.array_location = np.zeros((self.simulation_number, 3))
+        self.array_rotation_blend = np.zeros((self.simulation_number, 4))
+        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
+        
+        # This is the loaded STL file of the workpiece
+        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
     def import_orientation(self):
 
@@ -131,7 +138,15 @@ class PoseFinder:
                             (0.0-eps <= r_y_KS0 <= 0.0+eps)):
                             self.array_quaternion_blend[j, 4] = n
                             self.array_rotation_blend[j, 3] = n
-                
+                            print(n)
+                            print(f"same pose at j {j}")
+                        else:
+
+                            print(f"different pose at j {j}")
+
+                print(f"here n iterates: {n}")
+                self.array_quaternion_blend[i, 4] = n
+                self.array_rotation_blend[i, 3] = n
                 n += 1
     
     # helper function to convert euler to rotational matricies

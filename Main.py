@@ -5,10 +5,13 @@ import PoseFinder as pf
 script_dir = Path(__file__).parent
 
 # This is the name of the workpieces and of their models
-workpiece_name = 'Teil_1'
+workpiece_name = 'Teil_5'
+
+# This is the number of simulations
+simulation_number = 507
 
 # Get the current script's directory and then add the file path to the folders containing the position and orientation data of the stable poses recorded in the simulations
-data_path = Path(__file__).parent / 'MHI_Data'
+data_path = Path(__file__).parent / 'SimulationData'/'MHI_Data'
 
 # Get the current script's directory and then add the file path to the folders containing the workpiece stls
 workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -17,7 +20,7 @@ workpiece_path =  Path(__file__).parent / 'Workpieces'
 poseFindObject = pf.PoseFinder()
 
 # Define the workpiece name and filepath locations for the pose finder instance
-poseFindObject.config(workpiece_name = workpiece_name,data_path = data_path,workpiece_path = workpiece_path)
+poseFindObject.config(workpiece_name = workpiece_name,data_path = data_path,workpiece_path = workpiece_path,simulation_number = simulation_number)
  
 # Import csv data from simulations
 poseFindObject.import_orientation()
