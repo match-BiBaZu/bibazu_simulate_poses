@@ -96,7 +96,8 @@ class PoseFinder:
         for i in range(len(self.array_quaternion_blend)):
             if self.array_quaternion_blend[i, 4] == 0:
                 self.array_quaternion_blend[i, 4] = n
-                
+                self.array_rotation_blend[i, 3] = n
+
                 x = self.array_quaternion_blend[i, :4]  # KS1 - Quaternion (w, x, y, z)
                 
                 for j in range(i+1, len(self.array_quaternion_blend)):
@@ -149,6 +150,38 @@ class PoseFinder:
                 self.array_rotation_blend[i, 3] = n
                 n += 1
     
+    def find_poses_dot(self):
+        n = 1
+        eps = 0.3 #Arbitrarily determined thresholding parameter to seperate regions of rotation into poses
+
+        for i in range(len(self.array_quaternion_blend)):
+            if self.array_quaternion_blend[i, 4] == 0:
+                self.array_quaternion_blend[i, 4] = n
+                self.array_rotation_blend[i, 3] = n
+
+                x = self.array_quaternion_blend[i, :4]  # KS1 - Quaternion (w, x, y, z)
+
+                for j in range(i+1, len(self.array_quaternion_blend)):
+                    y = self.array_quaternion_blend[j, :4]  # KS2 - Quaternion (w, x, y, z)
+
+                    # Normalize the quaternions
+                    x = self.normalize_quat(x)
+                    y = self.normalize_quat(y)
+
+                    # z quaternion = quat_conjugate(x) * y
+                    z = self.quat_multiply(self.quat_conjugate(x), y)
+
+                    # Use dot product to measure similarity instead of relying on epsilon for each component
+                    dot_product = np.dot(x, y)  # Compare quaternions based on their dot product
+
+                    # If the quaternions are similar enough (dot product close to 1 or -1)
+                    if np.abs(dot_product) >= 1 - eps:
+                        self.array_quaternion_blend[j, 4] = n
+                        self.array_rotation_blend[j, 3] = n
+
+                # Increment n only when a new pose is detected
+                n += 1
+
     # helper function to convert euler to rotational matricies
     @staticmethod
     def euler_to_rot_matrix(ax, ay, az):

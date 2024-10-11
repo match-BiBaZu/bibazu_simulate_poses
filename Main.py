@@ -26,7 +26,8 @@ poseFindObject.config(workpiece_name = workpiece_name,data_path = data_path,work
 poseFindObject.import_orientation()
 
 # Process the data to find stable poses
-poseFindObject.find_poses()
+#poseFindObject.find_poses()
+poseFindObject.find_poses_dot()
 
 # Plot the resulting stable poses
 poseFindObject.plot_poses()
