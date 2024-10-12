@@ -130,11 +130,15 @@ with open(workpiece_data_path, 'w') as workpiece_data:
         # Set the overall simulation length 
         bpy.context.scene.frame_end = 2000
                 
-        # Set the the cache parameters for the rigidbody_world component of the simulation
-        bpy.context.scene.rigidbody_world.point_cache.frame_start = 1
-        bpy.context.scene.rigidbody_world.point_cache.frame_end = 2000
-        bpy.context.scene.rigidbody_world.point_cache.use_disk_cache = True  # Enable disk cache (optional)
+        # Set scene frame range
+        bpy.context.scene.frame_start = 1
+        bpy.context.scene.frame_end = 2000
 
+        # Set rigid body world frame range
+        if bpy.context.scene.rigidbody_world:
+            bpy.context.scene.rigidbody_world.point_cache.frame_start = bpy.context.scene.frame_start
+            bpy.context.scene.rigidbody_world.point_cache.frame_end = bpy.context.scene.frame_end
+            bpy.context.scene.rigidbody_world.point_cache.use_disk_cache = True
 
         # Initialize matrices to store location, rotation euler, and quaternion data
         matrix_location = np.zeros([2000, 3])
