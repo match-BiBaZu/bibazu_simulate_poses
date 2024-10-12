@@ -11,7 +11,7 @@ workpiece_name = 'Teil_1'
 simulation_number = 1000
 
 # Get the current script's directory and then add the file path to the folders containing the position and orientation data of the stable poses recorded in the simulations
-data_path = Path(__file__).parent / 'SimulationData'/'MHI_Data'
+data_path = Path(__file__).parent / 'SimulationData'/'Dashas_Testing'
 
 # Get the current script's directory and then add the file path to the folders containing the workpiece stls
 workpiece_path =  Path(__file__).parent / 'Workpieces'

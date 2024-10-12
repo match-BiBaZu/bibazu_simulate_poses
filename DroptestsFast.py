@@ -1,7 +1,6 @@
 #----------
 # 1. IMPORT
 #----------
-
 import bpy
 import random
 import math
@@ -11,6 +10,10 @@ import numpy as np
 
 name_obj = "Teil_1"  # Object name
 iterations = 1000
+
+impulse_threshold = 0.001  # Define the impulse threshold for stopping
+previous_impulse = mathutils.Vector((0, 0, 0))  # Store the previous frame's impulse
+cumulative_impulse = mathutils.Vector((0, 0, 0))  # Cumulative impulse
 
 # File paths
 base_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/SimulationData/Dashas_Testing/'
@@ -40,6 +43,14 @@ with open(workpiece_data_path, 'w') as workpiece_data:
         bpy.ops.object.select_by_type(type='MESH')
         bpy.ops.object.delete()
 
+        # Explicitly remove the objects from the scene and memory
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH':
+                bpy.data.objects.remove(obj, do_unlink=True)
+        
+        # Clear mesh data to avoid memory leaks
+        for mesh in bpy.data.meshes:
+            bpy.data.meshes.remove(mesh)
         # ------------------------------------------
         # 2. IMPORT, ADD, LOCATE and ROTATE Objects
         # ------------------------------------------
@@ -71,7 +82,7 @@ with open(workpiece_data_path, 'w') as workpiece_data:
         # Rigid Body Constraints for Workpiece
         workpiece.select_set(True)
         bpy.ops.rigidbody.objects_add(type='ACTIVE')
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS')
         workpiece.rigid_body.mass = 1
         workpiece.rigid_body.restitution = 0.8  # Bounciness
         workpiece.rigid_body.friction = 0.5  # Friction
@@ -113,10 +124,17 @@ with open(workpiece_data_path, 'w') as workpiece_data:
         bpy.app.handlers.frame_change_post.append(print_simulated_loc_rot)
 
         # -------------------------
-        # 6. Export simulated data to .txt
+        # 6. Run Simulation and Export simulated data to .txt
         # -------------------------
-
+        
+        # Set the overall simulation length 
         bpy.context.scene.frame_end = 2000
+                
+        # Set the the cache parameters for the rigidbody_world component of the simulation
+        bpy.context.scene.rigidbody_world.point_cache.frame_start = 1
+        bpy.context.scene.rigidbody_world.point_cache.frame_end = 2000
+        bpy.context.scene.rigidbody_world.point_cache.use_disk_cache = True  # Enable disk cache (optional)
+
 
         # Initialize matrices to store location, rotation euler, and quaternion data
         matrix_location = np.zeros([2000, 3])
@@ -136,7 +154,53 @@ with open(workpiece_data_path, 'w') as workpiece_data:
 
             sim_quaternion = o.matrix_world.to_quaternion()
             matrix_rotation_quaternion[f] = [round(v, 4) for v in sim_quaternion]
+            
+            # Early termination based on quaternion stability
+            #if f > 20:
+            #    if np.allclose(matrix_rotation_quaternion[f-8], matrix_rotation_quaternion[f], atol=1e-3) and \
+            #       np.allclose(matrix_rotation_quaternion[f-3], matrix_rotation_quaternion[f], atol=1e-3):
+            #        break
+                
+            #if f > 5 and np.allclose(matrix_location[f], matrix_location[f - 5], atol=0.0001) and np.allclose(matrix_rotation_euler[f], matrix_rotation_euler[f - 5], atol=0.0001):
+            #    bpy.ops.screen.animation_play()
+            
+            # calculate impulse
+#            def calculate_impulse(object):
+#                """ Calculate the impulse as mass * velocity """
+#                velocity = object.rigid_body.velocity
+#                mass = object.rigid_body.mass
+#                impulse = velocity * mass
+#                return impulse
+#            
+#            # Set up frame change handler for impulse tracking
+#            def check_for_equilibrium(scene):
+#                global previous_impulse, cumulative_impulse
 
+#                # Get current impulse of the workpiece
+#                current_impulse = calculate_impulse(workpiece)
+
+#                # Calculate the change in impulse (difference from previous frame)
+#                impulse_change = current_impulse - previous_impulse
+
+#                # Accumulate the impulse changes
+#                cumulative_impulse += impulse_change
+
+#                # Update previous impulse for the next frame
+#                previous_impulse = current_impulse.copy()
+
+#                # Print impulse information (optional for debugging)
+#                print(f"Frame: {scene.frame_current}, Impulse: {current_impulse.length}, Cumulative Impulse: {cumulative_impulse.length}")
+
+#                # Check if cumulative impulse is below the threshold
+#                if cumulative_impulse.length < impulse_threshold:
+#                    print(f"Object '{name_obj}' reached equilibrium at frame {scene.frame_current}")
+#                    # Pause the simulation
+#                    bpy.ops.screen.animation_play()  # Pauses the simulation (toggle play/pause)
+
+            # Add frame handler to check the impulse on each frame
+#            bpy.app.handlers.frame_change_post.clear()  # Clear previous handlers
+#            bpy.app.handlers.frame_change_post.append(check_for_equilibrium)
+                    
         # Write simulated data to files
         with open(workpiece_location_path, 'a') as loc_file, open(workpiece_rotation_path, 'a') as rot_file, open(workpiece_quaternion_path, 'a') as quat_file:
             loc_file.write(f"{matrix_location[f][0]}\t{matrix_location[f][1]}\t{matrix_location[f][2]}\n")
