@@ -5,7 +5,7 @@ import PoseFinder as pf
 script_dir = Path(__file__).parent
 
 # This is the name of the workpieces and of their models
-workpiece_name = 'Teil_1'
+workpiece_name = 'Teil_5'
 
 # This is the number of simulations
 simulation_number = 1000

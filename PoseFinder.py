@@ -272,7 +272,7 @@ class PoseFinder:
         plt.show()
 
         # Figure 2: histogram of frequency of stable poses
-        stable_poses_frequency, bin_edges = np.histogram(self.array_rotation_blend[:, 3], bins=np.arange(1, total_poses + 1))
+        stable_poses_frequency, bin_edges = np.histogram(self.array_rotation_blend[:, 3], bins=np.arange(1, total_poses + 2))
         
         # Plot the histogram
         plt.figure()
@@ -287,18 +287,18 @@ class PoseFinder:
         labels = []
         labels_pie = []
 
-        for m in range(1, total_poses):
+        for m in range(1, total_poses + 1):
             abs_str = str(stable_poses_frequency[m - 1])
             percentage_str = str(round(stable_poses_frequency[m - 1] / (len(self.array_quaternion_blend) / 100), 2))
             labels.append(f"Pose {m} (n = {abs_str})")
             labels_pie.append(f"Pose {m} ({percentage_str}%)")
 
         max_pose_idx = np.argmax(stable_poses_frequency)
-        explode = np.zeros(total_poses - 1)
+        explode = np.zeros(total_poses)
         explode[max_pose_idx] = 0.1  # Adjust the explode value to make the gap smaller
 
         # Plot the pie chart
         plt.pie(stable_poses_frequency, explode=explode, labels=labels_pie)
         plt.title(f"Natural Resting Position -" + self.workpiece_name)
-        plt.legend(labels, loc='center left', bbox_to_anchor=(1, 0.5))  # Add legend to the right side
+        plt.legend(labels, loc='center left', bbox_to_anchor=(1.2, 0.5))  # Add legend to the right side
         plt.show()
