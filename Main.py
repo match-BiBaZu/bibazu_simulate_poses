@@ -5,10 +5,10 @@ import PoseFinder as pf
 script_dir = Path(__file__).parent
 
 # This is the name of the workpieces and of their models
-workpiece_name = 'Teil_5'
+workpiece_name = 'R2D2'
 
 # This is the number of simulations
-simulation_number = 1000
+simulation_number = 426
 
 # Get the current script's directory and then add the file path to the folders containing the position and orientation data of the stable poses recorded in the simulations
 data_path = Path(__file__).parent / 'SimulationData'/'Dashas_Testing'

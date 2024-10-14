@@ -9,13 +9,13 @@ from math import pi, degrees
 import numpy as np
 
 name_obj = "Teil_5"  # Object name
-iterations = 1000 # Number of iterations
+iterations = 10 # Number of iterations
 
 # Initialisation parameters for impulse calculation
 impulse_threshold = 0.001  # Define the impulse threshold for stopping
 
 previous_impulse = mathutils.Vector((0, 0, 0))  # Store the previous frame's impulse
-previous_location = None # Store the previous frame's location
+previous_rotation = None # Store the previous frame's location
 
 #File paths for imported stl files
 surface_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/Surfaces/Plane.STL'
@@ -124,22 +124,6 @@ with open(workpiece_data_path, 'w') as workpiece_data:
         matrix_location = np.zeros([2000, 3])
         matrix_rotation_euler = np.zeros([2000, 3])
         matrix_rotation_quaternion = np.zeros([2000, 4])
-
-        # calculate impulse, mass x velocity
-        def calculate_impulse(object, previous_location):
-
-            current_location = object.matrix_world.to_translation()
-
-            if previous_location is not None:
-                velocity = (current_location - previous_location) * bpy.context.scene.render.fps  # Velocity in units/second
-            else:
-                velocity = mathutils.Vector((1, 1, 1))  # Skip over the first frame (arbitrary velocity)
-
-            # Store current location as previous for the next frame
-            mass = object.rigid_body.mass
-            impulse = velocity * mass  # (kg·m/s)
-
-            return impulse, current_location  # Return updated previous_location
     
         # Simulate and capture data for each frame
         for f in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end):
@@ -155,26 +139,15 @@ with open(workpiece_data_path, 'w') as workpiece_data:
             sim_quaternion = workpiece.matrix_world.to_quaternion()
             matrix_rotation_quaternion[f] = [round(v, 4) for v in sim_quaternion]
 
-            # Get current impulse of the workpiece
-            current_impulse,previous_location = calculate_impulse(workpiece, previous_location)
-
-            # Print impulse information (optional for debugging)
-            print(f"Frame: {f}, Impulse: {current_impulse.length}")
-
-            # Check if cumulative impulse is below the threshold
-            if current_impulse.length < impulse_threshold:
-                print(f"Object '{name_obj}' reached equilibrium at frame {f}")
-                break
-            
-            # Early termination based on quaternion stability
-            #if f > 20:
-            #    if np.allclose(matrix_rotation_quaternion[f-8], matrix_rotation_quaternion[f], atol=1e-3) and \
-            #       np.allclose(matrix_rotation_quaternion[f-3], matrix_rotation_quaternion[f], atol=1e-3):
-            #        break
+            if f > 20:
+                if np.allclose(matrix_rotation_quaternion[f-8], matrix_rotation_quaternion[f], atol=1e-3) and \
+                   np.allclose(matrix_rotation_quaternion[f-3], matrix_rotation_quaternion[f], atol=1e-3):
+                    print(f"Object '{name_obj}' reached equilibrium at frame {f}")
+                    break
             
             #if f > 5 and np.allclose(matrix_location[f], matrix_location[f - 5], atol=0.0001) and np.allclose(matrix_rotation_euler[f], matrix_rotation_euler[f - 5], atol=0.0001):
             #    break
-                print(f"Object '{name_obj}' reached equilibrium at frame {f}")
+                #print(f"Object '{name_obj}' reached equilibrium at frame {f}")
             #else:
             #    # If the loop completes without breaking, repeat the same iteration
             #    continue
