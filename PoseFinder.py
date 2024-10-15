@@ -6,7 +6,7 @@ from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 class PoseFinder:
-    def __init__(self):
+    def __init__(self): #default values
         # This is the current name of the workpiece
         self.workpiece_name = 'Teil_1'
 
@@ -19,8 +19,14 @@ class PoseFinder:
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
+        # These are the arrays that are used to store the stable orientations determined by the simulations
+        self.array_location = np.zeros((self.simulation_number, 3))
+        self.array_rotation_blend = np.zeros((self.simulation_number, 4))
+        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
         
-    
+        # This is the loaded STL file of the workpiece
+        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
+        
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
     def config(self, **kwargs):
 
@@ -41,7 +47,7 @@ class PoseFinder:
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
-    def import_orientation(self):
+    def import_orientation_csv(self):
 
         # Import data from the simulation CSV files into arrays
         self.array_location = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')), dtype=float).reshape(-1, 3)
