@@ -85,18 +85,6 @@ class DroptestsFaster:
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
     
-    @staticmethod
-    def quat_multiply(q1, q2):
-        w1, x1, y1, z1 = q1
-        w2, x2, y2, z2 = q2
-
-        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
-        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
-        y = w1*y2 + y1*w2 + z1*x2 - x1*z2
-        z = w1*z2 + z1*w2 + x1*y2 - y1*x2
-
-        return (w, x, y, z)
-    
     def drop_tests(self):
         impulse_threshold = 0.005  # Define the impulse threshold for stopping
         simulation_steps = 1500 # Define the maximum number of simulation steps
@@ -246,7 +234,7 @@ class DroptestsFaster:
                     # Use PyBullet's multiplyTransforms to multiply quaternions
                     _, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], bullet_orientation)
 
-                    #Change quaternion orderning from w,x,y,z to x,y,z,w to match blender model outputs
+                    #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
 
                     euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
