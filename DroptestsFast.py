@@ -8,17 +8,14 @@ import mathutils
 from math import pi, degrees
 import numpy as np
 
-name_obj = "Teil_5"  # Object name
-iterations = 10 # Number of iterations
-
-# Initialisation parameters for impulse calculation
-impulse_threshold = 0.001  # Define the impulse threshold for stopping
+name_obj = "Teil_2"  # Object name
+iterations = 100 # Number of iterations
 
 previous_impulse = mathutils.Vector((0, 0, 0))  # Store the previous frame's impulse
 previous_rotation = None # Store the previous frame's location
 
 #File paths for imported stl files
-surface_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/Surfaces/Plane.STL'
+surface_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/Surfaces/Slide_Long.STL'
 workpiece_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/Workpieces/' + name_obj + '.STL'
 
 # File paths for simulated data
@@ -139,7 +136,7 @@ with open(workpiece_data_path, 'w') as workpiece_data:
             sim_quaternion = workpiece.matrix_world.to_quaternion()
             matrix_rotation_quaternion[f] = [round(v, 4) for v in sim_quaternion]
 
-            if f > 20:
+            if f > 100:
                 if np.allclose(matrix_rotation_quaternion[f-8], matrix_rotation_quaternion[f], atol=1e-3) and \
                    np.allclose(matrix_rotation_quaternion[f-3], matrix_rotation_quaternion[f], atol=1e-3):
                     print(f"Object '{name_obj}' reached equilibrium at frame {f}")
@@ -149,7 +146,7 @@ with open(workpiece_data_path, 'w') as workpiece_data:
             #    break
                 #print(f"Object '{name_obj}' reached equilibrium at frame {f}")
             #else:
-            #    # If the loop completes without breaking, repeat the same iteration
+                # If the loop completes without breaking, repeat the same iteration
             #    continue
         
 

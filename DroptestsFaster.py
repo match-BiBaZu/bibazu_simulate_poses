@@ -3,7 +3,7 @@ import pybullet as p
 import pybullet_data
 import time
 import random
-from math import pi
+from math import pi, degrees, radians
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 
 class DroptestsFaster:
@@ -16,7 +16,13 @@ class DroptestsFaster:
 
         # This is the total number of simulations - usually 1000
         self.simulation_number = 1000
-        
+
+        # This is the tilt angle of the slide along it's 'sliding' axis
+        self.Alpha = 0.0
+
+        # This is the tilt angle of the slide perpendicular to it's 'sliding' axis
+        self.Beta = 0.0
+
         # This is the current file path of the data stored relative to the script
         self.data_path = Path(__file__).parent / 'SimulationData' / 'MHI_Data'
 
@@ -26,11 +32,6 @@ class DroptestsFaster:
         # This is the current file path of the workpiece stls relative to the script
         self.surface_path =  Path(__file__).parent / 'Surfaces'
 
-        # This is the current urdf file path of the workpiece
-        self.workpiece_urdf_path = "r2d2.urdf"
-
-        # THis is the current urdf file path of the surface
-        self.surface_urdf_path = "plane.urdf"
 
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
     def config(self, **kwargs):
@@ -38,48 +39,41 @@ class DroptestsFaster:
         if 'workpiece_name' in kwargs:
             self.workpiece_name = kwargs['workpiece_name']
         if 'surface_name' in kwargs:
-            self.workpiece_name = kwargs['surface_name']
+            self.surface_name = kwargs['surface_name']
+        if 'simulation_number' in kwargs:
+            self.simulation_number = kwargs['simulation_number']
+        if 'Alpha' in kwargs:
+            self.Alpha = kwargs['Alpha']
+        if 'Beta' in kwargs:
+            self.Beta = kwargs['Beta']
         if 'data_path' in kwargs:
             self.data_path = kwargs['data_path']
         if 'workpiece_path' in kwargs:
             self.workpiece_path = kwargs['workpiece_path']
-            self.workpiece_urdf_path = str(self.workpiece_path / (self.workpiece_name + '.urdf'))
         if 'surface_path' in kwargs:
             self.surface_path = kwargs['surface_path']
-            self.surface_urdf_path = str(self.surface_path / (self.surface_name + '.urdf'))
-        if 'simulation_number' in kwargs:
-            self.simulation_number = kwargs['simulation_number']
 
-    
-    # Function to create a URDF file that points to an STL file
     @staticmethod
-    def create_urdf( stl_path, urdf_path, object_name):
-        urdf_content = f"""<?xml version="1.0"?>
-        <robot name="{object_name}">
-            <link name="base_link">
-                <visual>
-                    <geometry>
-                        <mesh filename="{object_name}.STL" />
-                    </geometry>
-                </visual>
-                <collision>
-                    <geometry>
-                        <mesh filename="{object_name}.STL" />
-                    </geometry>
-                </collision>
-                <inertial>
-                    <mass value="1.0" />
-                    <origin xyz="0 0 0" rpy="0 0 0" />
-                    <inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1" />
-                </inertial>
-            </link>
-        </robot>
-        """
-        # Write the URDF file
-        with open(urdf_path, 'w') as urdf_file:
-            urdf_file.write(urdf_content)
-        print(f"URDF created: {urdf_path}")
+    def calculate_geometric_center(obj_filepath):
+        vertices = []
 
+        # Open and read the .obj file
+        with open(obj_filepath, 'r') as file:
+            for line in file:
+                # Check if the line starts with 'v', which indicates a vertex
+                if line.startswith('v '):
+                    # Split the line by spaces and extract the vertex coordinates
+                    parts = line.split()
+                    vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                    vertices.append(vertex)
+
+        # Convert the list of vertices into a numpy array
+        vertices = np.array(vertices)
+
+        # Calculate the geometric center by averaging the vertex positions
+        geometric_center = np.mean(vertices, axis=0)
+
+        return geometric_center
 
     @staticmethod
     def rand_orientation():
@@ -91,64 +85,129 @@ class DroptestsFaster:
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
     
+    @staticmethod
+    def quat_multiply(q1, q2):
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 + y1*w2 + z1*x2 - x1*z2
+        z = w1*z2 + z1*w2 + x1*y2 - y1*x2
+
+        return (w, x, y, z)
+    
     def drop_tests(self):
-        impulse_threshold = 0.001  # Define the impulse threshold for stopping
-        simulation_steps = 2000 # Define the maximum number of simulation steps
+        impulse_threshold = 0.005  # Define the impulse threshold for stopping
+        simulation_steps = 1500 # Define the maximum number of simulation steps
 
         # Initialize PyBullet and set up physics simulation
         p.connect(p.GUI)  # Use p.DIRECT for non-GUI mode
         p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
-        #p.setAdditionalSearchPath("/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/")
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
-        # URDF file creation if file does not exist
-        #if not (self.workpiece_path / (self.workpiece_name + '.urdf')).exists():
-        self.create_urdf(str(self.workpiece_path / (self.workpiece_name + '.STL')), str(self.workpiece_path / (self.workpiece_name + '.urdf')), self.workpiece_name)
-        #if not (self.surface_path / (self.surface_name + '.urdf')).exists():
-        self.create_urdf(str(self.surface_path / (self.surface_name + '.STL')), str(self.surface_path / (self.surface_name + '.urdf')), self.surface_name)
-
-        # Load the plane (ground)
-        plane_id = p.loadURDF('plane.urdf')
-        p.changeDynamics(plane_id, -1, restitution=0.8, lateralFriction=0.5)
-
         # Load the workpiece model (use a simple object for this example)
-        workpiece_start_pos = [0, 0, 3]  # Start above the plane
+        workpiece_start_pos = [0, 0, 1]  # Start above the plane
 
-        # workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
+        # Random workpiece orientations defined in each iteration
         workpiece_start_orientation = self.rand_orientation()
 
-        # Create the collision shape using the STL mesh
-        collision_id = p.createCollisionShape(
+        # Find the geometric center of the workpiece
+        workpiece_geometric_center = self.calculate_geometric_center(str(self.workpiece_path / (self.workpiece_name + '.obj')))
+        
+        # Create the collision shape using the obj file
+        # Create a convex hull collision shape for the workpiece
+        workpiece_collision_id = p.createCollisionShape(
             shapeType=p.GEOM_MESH,          # Specify that this is a mesh
-            fileName= str(self.workpiece_path / 'Teil_1.obj'),             # Path to your STL file
-            flags=p.URDF_INITIALIZE_SAT_FEATURES  # Optional, helps with complex shapes
+            fileName=str(self.workpiece_path / (self.workpiece_name + '.obj')),  # Path to your OBJ file
         )
 
-        # Create a visual shape (optional, for rendering in the GUI)
-        vis_shape_id = p.createVisualShape(
+        # Create a visual shape for the workpiece (optional, for rendering in the GUI)
+        workpiece_vis_shape_id = p.createVisualShape(
             shapeType=p.GEOM_MESH,
-            fileName=str(self.workpiece_path / 'Teil_1.obj')
+            fileName=str(self.workpiece_path / (self.workpiece_name + '.obj'))
         )
 
-        # Create a multi-body with the collision and visual shapes
+        # Create a multi-body with the collision and visual shapes for the workpiece
         workpiece_id = p.createMultiBody(
             baseMass=1.0,
-            baseCollisionShapeIndex=collision_id,
-            baseVisualShapeIndex=vis_shape_id,
+            baseCollisionShapeIndex=workpiece_collision_id,
+            baseVisualShapeIndex=workpiece_vis_shape_id,
             basePosition=workpiece_start_pos,
-            baseOrientation=workpiece_start_orientation
+            baseOrientation=workpiece_start_orientation,
+            baseInertialFramePosition=workpiece_geometric_center ,
         )
 
-        #workpiece_id = p.loadURDF(self.workpiece_urdf_path, workpiece_start_pos, workpiece_start_orientation)
+        # Find the geometric center of the surface
+        surface_geometric_center = self.calculate_geometric_center(str(self.surface_path / (self.surface_name + '.obj')))
 
-        # Set dynamic properties for the workpiece
-        p.changeDynamics(workpiece_id, -1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
+        # Create a convex hull collision shape for the surface
+        surface_collision_id = p.createCollisionShape(
+            shapeType=p.GEOM_MESH,          # Specify that this is a mesh
+            fileName=str(self.surface_path / (self.surface_name + '.obj')),  # Path to your OBJ file
+            flags= p.GEOM_FORCE_CONCAVE_TRIMESH | p.GEOM_CONCAVE_INTERNAL_EDGE # Use concave hull shape for collision
+        )
+
+        # Create a visual shape for the surface (optional, for rendering in the GUI)
+        surface_vis_shape_id = p.createVisualShape(
+            shapeType=p.GEOM_MESH,
+            fileName=str(self.surface_path / (self.surface_name + '.obj'))
+        )
+
+        # Create a multi-body with the collision and visual shapes for the surface
+        surface_id = p.createMultiBody(
+            baseMass=0.0,  # Static object
+            baseCollisionShapeIndex=surface_collision_id,
+            baseVisualShapeIndex=surface_vis_shape_id,
+            basePosition=-surface_geometric_center,  # Move to make the geometric center the origin
+            baseOrientation= [0, 0, 0, 1],  # first no rotation only translation to the center of the origin
+            baseInertialFramePosition=surface_geometric_center ,
+        )
+        # Surface Rotation Operation
+        surface_rotation = p.getQuaternionFromEuler([radians(self.Alpha), radians(self.Beta), 0])
+    
+        # Rotate the slide so that it is sloped and its cross section is rotated
+        p.resetBasePositionAndOrientation(surface_id, [0,0,0], surface_rotation)
+         
+        # DEBUGGING VISUALIZATIONS
+        # ----------------------------------------------------------------------------   
+
+        # Enable visualizing collision shapes
+        #p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, 1)
+
+        # Enable the GUI and other visualizations if needed
+        #p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+
+        # Draw a sphere at the adjusted COM to visualize it
+        com_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
+        com_marker = p.createMultiBody(
+            baseMass=0,
+            baseVisualShapeIndex=com_visual_shape,
+            basePosition=workpiece_geometric_center
+        )
+    
+        # Update the COM marker position in each simulation step
+        def update_com_marker():
+            com_position, _ = p.getBasePositionAndOrientation(workpiece_id)
+            p.resetBasePositionAndOrientation(com_marker, com_position, [0, 0, 0, 1])
+        # ----------------------------------------------------------------------------
+
+        # Set dynamic properties for the plane
+        p.changeDynamics(surface_id, -1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
+
+        # Set dynamic properties for the workpiece mass is in kg/m³ and the density of Aqua 8K V4 Resin is 1100 kg/m³
+        p.changeDynamics(workpiece_id, -1, mass=1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
 
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
         workpiece_location_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')
         workpiece_rotation_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_rotation.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_quaternion.txt')
+
+        # Initialize matricies to store simulation data
+        matrix_location = []
+        matrix_rotation_euler = []
+        matrix_rotation_quaternion = []
 
         # Clear the text files before starting (open in 'w' mode)
         with open(workpiece_location_path, 'w') as loc_file, \
@@ -170,26 +229,37 @@ class DroptestsFaster:
                 # Reset the position and orientation of the workpiece before each iteration
                 p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
                 p.resetBaseVelocity(workpiece_id, [0, 0, 0], [0, 0, 0])
-
-                matrix_location = []
-                matrix_rotation_euler = []
-                matrix_rotation_quaternion = []
                 
-
                 # Run the simulation
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
 
-                    # Get the workpiece's current position and orientation
-                    pos, orn = p.getBasePositionAndOrientation(workpiece_id)
-                    euler_orn = p.getEulerFromQuaternion(orn)
+                    update_com_marker()
 
+                    # Get the workpiece's current position and orientation
+                    position, bullet_orientation = p.getBasePositionAndOrientation(workpiece_id)
+
+                    # Apply an orientation to negate Alpha and Beta
+                    # Create a quaternion to negate Alpha and Beta rotations
+                    negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
+
+                    # Use PyBullet's multiplyTransforms to multiply quaternions
+                    _, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], bullet_orientation)
+
+                    #Change quaternion orderning from w,x,y,z to x,y,z,w to match blender model outputs
+                    blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
+
+                    euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
+
+                    #Change euler orientation to match blender model outputs
+                    euler_orientation =[degrees(euler_orientation[0])-90, degrees(euler_orientation[1]), degrees(euler_orientation[2])]
+                    
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
-                    angular_velocity_magnitude = np.linalg.norm(angular_velocity)  
+                    angular_velocity_magnitude = np.linalg.norm(angular_velocity)
 
                     # Get contact points between the plane and the workpiece
-                    contact_points = p.getContactPoints(bodyA=plane_id, bodyB=workpiece_id)
+                    contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
 
                     # Check if angular velocity is below the threshold and there is contact
                     if angular_velocity_magnitude < impulse_threshold and len(contact_points) > 0:
@@ -197,24 +267,25 @@ class DroptestsFaster:
                         break
 
                     # Slow down the simulation to match real-time (optional)
-                    #time.sleep(1 / 240.)
+                    time.sleep(1 / 240.)
 
                 # Store data
-                matrix_location.append(pos)
-                matrix_rotation_euler.append(euler_orn)
-                matrix_rotation_quaternion.append(orn)
-
-                # Save the simulation data
-                np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
-                np.savetxt(workpiece_rotation_path, np.array(matrix_rotation_euler), delimiter='\t')
-                np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
+                matrix_location.append(position)
+                matrix_rotation_euler.append(euler_orientation)
+                matrix_rotation_quaternion.append(blender_orientation)
 
                 # Write iteration data to workpiece_data
                 workpiece_data.writelines(f"\nITERATION: {n}\n")
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
-                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {pos[0]}, {pos[1]}, {pos[2]}\n")
-                workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orn[0]}, {euler_orn[1]}, {euler_orn[2]}\n")
-                workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orn[0]}, {orn[1]}, {orn[2]}, {orn[3]}\n")
+                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
+                workpiece_data.writelines(f"Simulated Rotation Quaternion (x, y, z, w): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+            
+            # Save the simulation data
+            np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
+            np.savetxt(workpiece_rotation_path, np.array(matrix_rotation_euler), delimiter='\t')
+            np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
+
 
         # Disconnect from PyBullet
         p.disconnect()
