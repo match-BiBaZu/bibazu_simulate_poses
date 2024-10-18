@@ -48,7 +48,6 @@ class PoseFinder:
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
     def import_orientation_csv(self):
-
         # Import data from the simulation CSV files into arrays
         self.array_location = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')), dtype=float).reshape(-1, 3)
         self.array_rotation_blend[:, :3] = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_rotation.txt')), dtype=float).reshape(-1, 3)*np.pi/180
@@ -58,7 +57,7 @@ class PoseFinder:
     # Quaternion operations that the find_poses function requres
     @staticmethod
     def quat_conjugate(quat):
-        """Returns the conjugate of a quaternion"""
+        #Returns the conjugate of a quaternion
         return np.array([quat[0], -quat[1], -quat[2], -quat[3]])
 
     @staticmethod
@@ -192,10 +191,10 @@ class PoseFinder:
                     self.array_rotation_blend[i, 3] = n
                     n += 1  # Increment pose label for the next set of poses
 
-    def find_poses_zou(self):
+    def find_poses_quat(self):
 
         n = 1  # Initialize the cluster label counter
-        eps = 0.5  # Threshold that can be adjusted as needed
+        rot_diff_threshold = 45  # Threshold that can be adjusted as needed
 
         # Loop over each quaternion
         for i in range(len(self.array_quaternion_blend)):
@@ -210,13 +209,14 @@ class PoseFinder:
                         quat_j = self.array_quaternion_blend[j, :4]  # Extract the quaternion
 
                         # Calculate the distance between the two quaternions
-                        quat_diff = np.abs(quat_i - quat_j)
-                        
-                        # If the distance between the quaternions is less than the threshold,
-                        # consider them to be in the same pose
-                        # Check if the rotation differences are within the threshold
+                        quat_diff = np.abs(self.quat_multiply(quat_i,self.quat_conjugate(quat_j)))
+                        print(quat_diff)
+
+                        # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
+                        # Therefore if the rotation is smaller than the threshold the scalar compoent will be bigger than
+                        # the cosine of the threshold
                         if self.array_quaternion_blend[j, 4] == 0.0:  # If pose not classified
-                            if np.all(quat_diff <= eps):
+                            if quat_diff[0] >= np.cos((rot_diff_threshold*np.pi)/360): # Check the scalar component
                                 self.array_rotation_blend[j, 3] = n  # Assign same pose
                                 self.array_quaternion_blend[j, 4] = n  # Assign the same cluster label
                                 print(n)

@@ -24,17 +24,17 @@ surface_path =  Path(__file__).parent / 'Surfaces'
 #--------------------------------------------------------------------------
 
 # This is the name of the workpieces and of their models
-workpiece_name = 'Teil_5'
+workpiece_name = 'Teil_4'
 
 #This is the name of the surface used
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 10
+simulation_number = 1000
 
 # MODIFIABLE SURFACE PARAMETERS:
 
-Alpha = 0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 20 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
 Beta = 45 # degrees
 
@@ -83,7 +83,7 @@ pose_finder.config(
 pose_finder.import_orientation_csv()
 
 # Process the data to find stable poses
-pose_finder.find_poses() 
+pose_finder.find_poses_quat() 
 
 # Plot the resulting stable poses
 pose_finder.plot_poses_quat() # only got the quaternion outputs to output properly for pose finder so this only uses quaternions

@@ -86,8 +86,9 @@ class DroptestsFaster:
         return workpiece_start_orientation
     
     def drop_tests(self):
-        impulse_threshold = 0.005  # Define the impulse threshold for stopping
+        impulse_threshold = 0.01  # Define the impulse threshold for stopping
         simulation_steps = 1500 # Define the maximum number of simulation steps
+        current_simulation = 1  # Initialize the simulation number
 
         # Initialize PyBullet and set up physics simulation
         p.connect(p.GUI)  # Use p.DIRECT for non-GUI mode
@@ -209,7 +210,7 @@ class DroptestsFaster:
             workpiece_data.writelines('\nSimulated_Data_' + self.workpiece_name + '\n')
             workpiece_data.writelines("-------------------------------------------\n")
 
-            for n in range(1, self.simulation_number + 1):
+            while current_simulation < self.simulation_number + 1:
 
                 # Random workpiece rotations defined in each iteration
                 workpiece_start_orientation = self.rand_orientation()
@@ -255,20 +256,23 @@ class DroptestsFaster:
                         break
 
                     # Slow down the simulation to match real-time (optional)
-                    time.sleep(1 / 240.)
+                    #time.sleep(1 / 240.)
+                
+                print(f"Simulation {current_simulation}, Step {step}")
 
-                # Store data
-                matrix_location.append(position)
-                matrix_rotation_euler.append(euler_orientation)
-                matrix_rotation_quaternion.append(blender_orientation)
+                if step < simulation_steps - 1: # If the simulation reached equilibrium
+                    current_simulation+= 1
+                    matrix_location.append(position)
+                    matrix_rotation_euler.append(euler_orientation)
+                    matrix_rotation_quaternion.append(blender_orientation)
 
-                # Write iteration data to workpiece_data
-                workpiece_data.writelines(f"\nITERATION: {n}\n")
-                workpiece_data.writelines(f"LAST STEP: {step}\n")
-                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
-                workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
-                workpiece_data.writelines(f"Simulated Rotation Quaternion (x, y, z, w): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
-            
+                    # Write iteration data to workpiece_data
+                    workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
+                    workpiece_data.writelines(f"LAST STEP: {step}\n")
+                    workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                    workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
+                    workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+                
             # Save the simulation data
             np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
             np.savetxt(workpiece_rotation_path, np.array(matrix_rotation_euler), delimiter='\t')
