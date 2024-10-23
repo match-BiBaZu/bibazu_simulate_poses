@@ -3,7 +3,6 @@ import pybullet as p
 import pybullet_data
 import time
 import random
-from math import pi, degrees, radians
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 
 class DroptestsFaster:
@@ -111,14 +110,63 @@ class DroptestsFaster:
                 axis_lengths = np.ptp(surface_vertices, axis=0)  # Calculate the range (max - min) along each axis
                 longest_axis_length = np.max(axis_lengths)  # Find the maximum length among the axes
                 return longest_axis_length
+    
+    # This function is used to extract the cross-section vertices of the surface, it assumes the longest vertex is perpendicular to the cross-section
+    @staticmethod
+    def calculate_cross_section_dimensions(obj_filepath):
+        vertices = []
+        faces = []
+
+        # Open and read the .obj file
+        with open(obj_filepath, 'r') as file:
+            for line in file:
+                if line.startswith('v '):
+                    parts = line.split()
+                    vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                    vertices.append(vertex)
+                elif line.startswith('f '):
+                    parts = line.split()
+                    face = [int(idx.split('/')[0]) - 1 for idx in parts[1:]]
+                    faces.append(face)
+
+        vertices = np.array(vertices)
+
+        # Calculate the length of the surface along its longest axis
+        axis_lengths = np.ptp(vertices, axis=0)
+        longest_axis = np.argmax(axis_lengths)
+
+        # Find faces perpendicular to the longest axis
+        cross_section_faces = []
+        for face in faces:
+            face_vertices = vertices[face]
+            normal = np.cross(face_vertices[1] - face_vertices[0], face_vertices[2] - face_vertices[0])
+            normal = normal / np.linalg.norm(normal)
+            if np.isclose(normal[longest_axis], 0):
+                cross_section_faces.append(face)
+
+        # Find the longest and shortest edge of the cross-section faces
+        longest_edge = 0
+        shortest_edge = float('inf')
+        for face in cross_section_faces:
+            face_vertices = vertices[face]
+            num_vertices = len(face_vertices)
+            for i in range(num_vertices):
+                for j in range(i + 1, num_vertices):
+                    edge_length = np.linalg.norm(face_vertices[i] - face_vertices[j])
+                    if edge_length > longest_edge:
+                        longest_edge = edge_length
+                    if edge_length < shortest_edge:
+                        shortest_edge = edge_length
+
+        return longest_edge, shortest_edge
 
     # This function is used to initialise the workpiece in a random orientation
     @staticmethod
     def rand_orientation():
         # Random rotations for workpiece
-        rand_rot_x_W = round(random.uniform(0, 2 * pi), 5)
-        rand_rot_y_W = round(random.uniform(0, 2 * pi), 5)
-        rand_rot_z_W = round(random.uniform(0, 2 * pi), 5)
+        rand_rot_x_W = round(random.uniform(0, 2 * np.pi), 5)
+        rand_rot_y_W = round(random.uniform(0, 2 * np.pi), 5)
+        rand_rot_z_W = round(random.uniform(0, 2 * np.pi), 5)
 
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
@@ -139,6 +187,12 @@ class DroptestsFaster:
         # Find the length of the slide
         surface_length = self.calculate_surface_length(str(self.surface_path / (self.surface_name + '.obj')))
 
+        # Find the cross-section dimensions of the surface, the longest edge and also its thickness
+        cross_section_length, cross_section_thickness = self.calculate_cross_section_dimensions(str(self.surface_path/(self.surface_name + '.obj')))
+        
+        # Determine the end point of the sliding action that the workpiece will reach on the surface
+        surface_end_point = (surface_length/2)*np.cos(np.radians(self.Alpha)) - ((cross_section_length-cross_section_thickness)/4)*np.sin(np.radians(self.Beta))*np.sin(np.radians(self.Alpha))
+                                  
         # Create a convex hull collision shape for the surface
         surface_collision_id = p.createCollisionShape(
             shapeType=p.GEOM_MESH,          # Specify that this is a mesh
@@ -163,8 +217,8 @@ class DroptestsFaster:
         )
         
         # Create separate quaternions for rotation around the X and Y axes
-        rotation_x = p.getQuaternionFromEuler([radians(self.Alpha), 0, 0])  # Rotation around X-axis
-        rotation_y = p.getQuaternionFromEuler([0, radians(self.Beta), 0])   # Rotation around Y-axis
+        rotation_x = p.getQuaternionFromEuler([np.radians(self.Alpha), 0, 0])  # Rotation around X-axis
+        rotation_y = p.getQuaternionFromEuler([0, np.radians(self.Beta), 0])   # Rotation around Y-axis
 
         # Combine both quaternions by multiplying them
         surface_rotation = p.multiplyTransforms([0, 0, 0], rotation_x, [0, 0, 0], rotation_y)[1]
@@ -264,7 +318,7 @@ class DroptestsFaster:
                 # Reset the position and orientation of the workpiece before each iteration
                 p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
                 # Apply an initial velocity to the workpiece after resetting its position and orientation
-                p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(radians(self.Alpha))], [0, 0, 0])
+                p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
 
                 # Run the simulation
                 for step in range(simulation_steps):  # Maximum number of simulation steps
@@ -288,7 +342,7 @@ class DroptestsFaster:
                     euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
 
                     #Change euler orientation to match blender model outputs
-                    euler_orientation =[degrees(euler_orientation[0])-90, degrees(euler_orientation[1]), degrees(euler_orientation[2])]
+                    euler_orientation =[np.degrees(euler_orientation[0])-90, np.degrees(euler_orientation[1]), np.degrees(euler_orientation[2])]
                     
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
@@ -307,16 +361,14 @@ class DroptestsFaster:
                     # Apply an initial velocity to the workpiece once the workpiece has made contact with the surface
                     #if len(contact_points) > 2 and apply_velocity == True:
                         
-                    #    self.set_workpiece_velocity(workpiece_id, self.workpiece_feed_speed, [0,-np.cos(radians(self.Alpha)),np.sin(radians(self.Alpha))])
+                    #    self.set_workpiece_velocity(workpiece_id, self.workpiece_feed_speed, [0,-np.cos(np.radians(self.Alpha)),np.sin(np.radians(self.Alpha))])
                     #    apply_velocity = False
 
-                    # Stop the simulation when the workpiece reaches the end of the slide
-                    if position[1] < -(surface_length/2 - 1.5)*np.cos(np.radians(self.Alpha)):
+                    # Stop the simulation when the workpiece reaches the end of the slide (surface_length/2)*np.cos(np.radians(self.Alpha))
+                    if position[1] < -surface_end_point:
                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
                        break
-
-
-                
+   
                 print(f"Simulation {current_simulation}, Step {step}")
                 current_simulation+= 1
                 matrix_location.append(position)

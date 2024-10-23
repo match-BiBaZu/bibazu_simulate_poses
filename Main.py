@@ -34,11 +34,11 @@ simulation_number = 10
 
 # MODIFIABLE SURFACE PARAMETERS:
 
-Alpha = 40.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 0.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
 Beta = 45.0 # degrees
 
-workpiece_feed_speed = 0.0 # initial feed of the workpiece before it begins to slide down
+workpiece_feed_speed = 10.0 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
 #Create an .obj file if it does not already exist for the bullet engine
 
