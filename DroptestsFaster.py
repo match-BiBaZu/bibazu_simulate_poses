@@ -17,12 +17,19 @@ class DroptestsFaster:
         # This is the total number of simulations - usually 1000
         self.simulation_number = 1000
 
+        #--------------------------------------------------------------------------
+        # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
+
         # This is the tilt angle of the slide along it's 'sliding' axis
         self.Alpha = 0.0
 
         # This is the tilt angle of the slide perpendicular to it's 'sliding' axis
         self.Beta = 0.0
 
+        # This is the feeding speed of the workpiece before it begins to slide down the surface
+        self.workpiece_feed_speed = 5.0
+
+        #--------------------------------------------------------------------------
         # This is the current file path of the data stored relative to the script
         self.data_path = Path(__file__).parent / 'SimulationData' / 'MHI_Data'
 
@@ -46,6 +53,8 @@ class DroptestsFaster:
             self.Alpha = kwargs['Alpha']
         if 'Beta' in kwargs:
             self.Beta = kwargs['Beta']
+        if 'workpiece_feed_speed' in kwargs:
+            self.workpiece_feed_speed = kwargs['workpiece_feed_speed']
         if 'data_path' in kwargs:
             self.data_path = kwargs['data_path']
         if 'workpiece_path' in kwargs:
@@ -53,6 +62,17 @@ class DroptestsFaster:
         if 'surface_path' in kwargs:
             self.surface_path = kwargs['surface_path']
 
+    # Function to set initial velocity after contact detection
+    def set_workpiece_velocity(self, workpiece_id, magnitude, direction):
+        norm_direction = np.linalg.norm(direction)
+        if norm_direction == 0:
+            raise ValueError("Direction vector cannot be zero.")
+        
+        normalized_direction = np.array(direction) / norm_direction
+        initial_velocity = normalized_direction * magnitude
+        p.resetBaseVelocity(workpiece_id, linearVelocity=initial_velocity, angularVelocity=(0,0,0))
+
+    # This function is used to calculate the geometric center of the surface
     @staticmethod
     def calculate_geometric_center(obj_filepath):
         vertices = []
@@ -75,6 +95,24 @@ class DroptestsFaster:
 
         return geometric_center
 
+    # This function is used to calculate the length of the surface in the x axis
+    @staticmethod
+    def calculate_surface_length(obj_filepath):
+                # Find the length of the surface along its longest axis
+                surface_vertices = []
+                with open(obj_filepath, 'r') as file:
+                    for line in file:
+                        if line.startswith('v '):
+                            parts = line.split()
+                            vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                            surface_vertices.append(vertex)
+
+                surface_vertices = np.array(surface_vertices)
+                axis_lengths = np.ptp(surface_vertices, axis=0)  # Calculate the range (max - min) along each axis
+                longest_axis_length = np.max(axis_lengths)  # Find the maximum length among the axes
+                return longest_axis_length
+
+    # This function is used to initialise the workpiece in a random orientation
     @staticmethod
     def rand_orientation():
         # Random rotations for workpiece
@@ -84,9 +122,9 @@ class DroptestsFaster:
 
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
-    
+
     def drop_tests(self):
-        impulse_threshold = 0.01  # Define the impulse threshold for stopping
+        impulse_threshold = 0.1  # Define the impulse threshold for stopping
         simulation_steps = 1500 # Define the maximum number of simulation steps
         current_simulation = 1  # Initialize the simulation number
 
@@ -95,8 +133,50 @@ class DroptestsFaster:
         p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
+        # Find the geometric center of the surface
+        surface_geometric_center = self.calculate_geometric_center(str(self.surface_path / (self.surface_name + '.obj')))
+
+        # Find the length of the slide
+        surface_length = self.calculate_surface_length(str(self.surface_path / (self.surface_name + '.obj')))
+
+        # Create a convex hull collision shape for the surface
+        surface_collision_id = p.createCollisionShape(
+            shapeType=p.GEOM_MESH,          # Specify that this is a mesh
+            fileName=str(self.surface_path / (self.surface_name + '.obj')),  # Path to your OBJ file
+            flags= p.GEOM_FORCE_CONCAVE_TRIMESH | p.GEOM_CONCAVE_INTERNAL_EDGE # Use concave hull shape for collision
+        )
+
+        # Create a visual shape for the surface (optional, for rendering in the GUI)
+        surface_vis_shape_id = p.createVisualShape(
+            shapeType=p.GEOM_MESH,
+            fileName=str(self.surface_path / (self.surface_name + '.obj'))
+        )
+    
+        # Create a multi-body with the collision and visual shapes for the surface
+        surface_id = p.createMultiBody(
+            baseMass=0.0,  # Static object
+            baseCollisionShapeIndex=surface_collision_id,
+            baseVisualShapeIndex=surface_vis_shape_id,
+            basePosition= [0,0,0],  
+            baseOrientation= [0,0,0,1],  # first no rotation only translation to the center of the origin
+            baseInertialFramePosition=surface_geometric_center ,
+        )
+        
+        # Create separate quaternions for rotation around the X and Y axes
+        rotation_x = p.getQuaternionFromEuler([radians(self.Alpha), 0, 0])  # Rotation around X-axis
+        rotation_y = p.getQuaternionFromEuler([0, radians(self.Beta), 0])   # Rotation around Y-axis
+
+        # Combine both quaternions by multiplying them
+        surface_rotation = p.multiplyTransforms([0, 0, 0], rotation_x, [0, 0, 0], rotation_y)[1]
+
+        # Apply the combined rotation to the object in quaternion form to avoid gimbal lock
+        p.resetBasePositionAndOrientation(surface_id, [0, 0, 0], surface_rotation)
+
         # Load the workpiece model (use a simple object for this example)
-        workpiece_start_pos = [0, 0, 1]  # Start above the plane
+        # Calculate the starting position of the workpiece 1 meter above the surface
+        workpiece_start_y = (surface_length/2 - 0.2)*np.cos(np.radians(self.Alpha))
+        workpiece_start_z = (surface_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) - 1
+        workpiece_start_pos = [0, workpiece_start_y, workpiece_start_z]  # Start 1 meter above the surface
 
         # Random workpiece orientations defined in each iteration
         workpiece_start_orientation = self.rand_orientation()
@@ -124,40 +204,9 @@ class DroptestsFaster:
             baseVisualShapeIndex=workpiece_vis_shape_id,
             basePosition=workpiece_start_pos,
             baseOrientation=workpiece_start_orientation,
-            baseInertialFramePosition=workpiece_geometric_center ,
+            baseInertialFramePosition=workpiece_geometric_center,
         )
 
-        # Find the geometric center of the surface
-        surface_geometric_center = self.calculate_geometric_center(str(self.surface_path / (self.surface_name + '.obj')))
-
-        # Create a convex hull collision shape for the surface
-        surface_collision_id = p.createCollisionShape(
-            shapeType=p.GEOM_MESH,          # Specify that this is a mesh
-            fileName=str(self.surface_path / (self.surface_name + '.obj')),  # Path to your OBJ file
-            flags= p.GEOM_FORCE_CONCAVE_TRIMESH | p.GEOM_CONCAVE_INTERNAL_EDGE # Use concave hull shape for collision
-        )
-
-        # Create a visual shape for the surface (optional, for rendering in the GUI)
-        surface_vis_shape_id = p.createVisualShape(
-            shapeType=p.GEOM_MESH,
-            fileName=str(self.surface_path / (self.surface_name + '.obj'))
-        )
-
-        # Create a multi-body with the collision and visual shapes for the surface
-        surface_id = p.createMultiBody(
-            baseMass=0.0,  # Static object
-            baseCollisionShapeIndex=surface_collision_id,
-            baseVisualShapeIndex=surface_vis_shape_id,
-            basePosition=-surface_geometric_center,  # Move to make the geometric center the origin
-            baseOrientation= [0, 0, 0, 1],  # first no rotation only translation to the center of the origin
-            baseInertialFramePosition=surface_geometric_center ,
-        )
-        # Surface Rotation Operation
-        surface_rotation = p.getQuaternionFromEuler([radians(self.Alpha), radians(self.Beta), 0])
-    
-        # Rotate the slide so that it is sloped and its cross section is rotated
-        p.resetBasePositionAndOrientation(surface_id, [0,0,0], surface_rotation)
-         
         # DEBUGGING VISUALIZATIONS
         # ----------------------------------------------------------------------------   
 
@@ -182,7 +231,7 @@ class DroptestsFaster:
         # ----------------------------------------------------------------------------
 
         # Set dynamic properties for the plane
-        p.changeDynamics(surface_id, -1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
+        p.changeDynamics(surface_id, -1, restitution=0.05, lateralFriction=0.04, linearDamping=0.04, angularDamping=0.1)
 
         # Set dynamic properties for the workpiece mass is in kg/m³ and the density of Aqua 8K V4 Resin is 1100 kg/m³
         p.changeDynamics(workpiece_id, -1, mass=1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
@@ -190,17 +239,14 @@ class DroptestsFaster:
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
         workpiece_location_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')
-        workpiece_rotation_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_rotation.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_quaternion.txt')
 
         # Initialize matricies to store simulation data
         matrix_location = []
-        matrix_rotation_euler = []
         matrix_rotation_quaternion = []
 
         # Clear the text files before starting (open in 'w' mode)
         with open(workpiece_location_path, 'w') as loc_file, \
-            open(workpiece_rotation_path, 'w') as rot_file, \
             open(workpiece_quaternion_path, 'w') as quat_file:
             pass  # Just opening the files in 'w' mode will clear them
 
@@ -217,8 +263,9 @@ class DroptestsFaster:
 
                 # Reset the position and orientation of the workpiece before each iteration
                 p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
-                p.resetBaseVelocity(workpiece_id, [0, 0, 0], [0, 0, 0])
-                
+                # Apply an initial velocity to the workpiece after resetting its position and orientation
+                p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(radians(self.Alpha))], [0, 0, 0])
+
                 # Run the simulation
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
@@ -250,32 +297,40 @@ class DroptestsFaster:
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
 
-                    # Check if angular velocity is below the threshold and there is contact
-                    if angular_velocity_magnitude < impulse_threshold and len(contact_points) > 0:
-                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
-                        break
-
+                    #for contact in contact_points:
+                    #    print(f"Contact Point: Position {contact[5]}, Normal {contact[7]}, Distance {contact[8]}")
+                    print(f"Number of Contact Points: {len(contact_points)}")
+                    print(f"Length of the slide: {surface_length}")
                     # Slow down the simulation to match real-time (optional)
-                    #time.sleep(1 / 240.)
+                    time.sleep(1 / 240.)
+
+                    # Apply an initial velocity to the workpiece once the workpiece has made contact with the surface
+                    #if len(contact_points) > 2 and apply_velocity == True:
+                        
+                    #    self.set_workpiece_velocity(workpiece_id, self.workpiece_feed_speed, [0,-np.cos(radians(self.Alpha)),np.sin(radians(self.Alpha))])
+                    #    apply_velocity = False
+
+                    # Stop the simulation when the workpiece reaches the end of the slide
+                    if position[1] < -(surface_length/2 - 1.5)*np.cos(np.radians(self.Alpha)):
+                       print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                       break
+
+
                 
                 print(f"Simulation {current_simulation}, Step {step}")
+                current_simulation+= 1
+                matrix_location.append(position)
+                matrix_rotation_quaternion.append(blender_orientation)
 
-                if step < simulation_steps - 1: # If the simulation reached equilibrium
-                    current_simulation+= 1
-                    matrix_location.append(position)
-                    matrix_rotation_euler.append(euler_orientation)
-                    matrix_rotation_quaternion.append(blender_orientation)
-
-                    # Write iteration data to workpiece_data
-                    workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
-                    workpiece_data.writelines(f"LAST STEP: {step}\n")
-                    workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
-                    workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
-                    workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
-                
+                # Write iteration data to workpiece_data
+                workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
+                workpiece_data.writelines(f"LAST STEP: {step}\n")
+                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
+                workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+            
             # Save the simulation data
             np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
-            np.savetxt(workpiece_rotation_path, np.array(matrix_rotation_euler), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
 
 

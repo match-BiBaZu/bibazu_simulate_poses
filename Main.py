@@ -30,13 +30,15 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 1000
+simulation_number = 10
 
 # MODIFIABLE SURFACE PARAMETERS:
 
-Alpha = 20 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 40.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-Beta = 45 # degrees
+Beta = 45.0 # degrees
+
+workpiece_feed_speed = 0.0 # initial feed of the workpiece before it begins to slide down
 
 #Create an .obj file if it does not already exist for the bullet engine
 
@@ -59,6 +61,7 @@ drop_tests_simulator.config(
     simulation_number=simulation_number,
     Alpha = Alpha,
     Beta = Beta,
+    workpiece_feed_speed = workpiece_feed_speed
 )
 
 # Generate the simulation data and write to csv files to store simulation data
