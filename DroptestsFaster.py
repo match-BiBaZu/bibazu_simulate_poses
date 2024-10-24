@@ -4,6 +4,7 @@ import pybullet_data
 import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
+import trimesh as tm
 
 class DroptestsFaster:
     def __init__(self):
@@ -27,6 +28,15 @@ class DroptestsFaster:
 
         # This is the feeding speed of the workpiece before it begins to slide down the surface
         self.workpiece_feed_speed = 5.0
+
+        # This is the offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+        self.hitpoint_offset_parallel = 0.0
+
+        # This is the offset of the nozzle on one of the slide surfaces perpendicular from the sliding axis
+        self.nozzle_offset_perpendicular = 0.0
+
+        # This is the impulse force applied by the nozzle to the workpiece
+        self.nozzle_impulse_force = 0.0
 
         #--------------------------------------------------------------------------
         # This is the current file path of the data stored relative to the script
@@ -60,6 +70,14 @@ class DroptestsFaster:
             self.workpiece_path = kwargs['workpiece_path']
         if 'surface_path' in kwargs:
             self.surface_path = kwargs['surface_path']
+        if 'hitpoint_offset_parallel' in kwargs:
+            self.hitpoint_offset_parallel = kwargs['hitpoint_offset_parallel']
+        if 'nozzle_offset_parallel' in kwargs:
+            self.nozzle_offset_parallel = kwargs['nozzle_offset_parallel']
+        if 'nozzle_offset_perpendicular' in kwargs:
+            self.nozzle_offset_perpendicular = kwargs['nozzle_offset_perpendicular']
+        if 'nozzle_impulse_force' in kwargs:
+            self.nozzle_impulse_force = kwargs['nozzle_impulse_force']
 
     # Function to set initial velocity after contact detection
     def set_workpiece_velocity(self, workpiece_id, magnitude, direction):
@@ -71,95 +89,6 @@ class DroptestsFaster:
         initial_velocity = normalized_direction * magnitude
         p.resetBaseVelocity(workpiece_id, linearVelocity=initial_velocity, angularVelocity=(0,0,0))
 
-    # This function is used to calculate the geometric center of the surface
-    @staticmethod
-    def calculate_geometric_center(obj_filepath):
-        vertices = []
-
-        # Open and read the .obj file
-        with open(obj_filepath, 'r') as file:
-            for line in file:
-                # Check if the line starts with 'v', which indicates a vertex
-                if line.startswith('v '):
-                    # Split the line by spaces and extract the vertex coordinates
-                    parts = line.split()
-                    vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-                    vertices.append(vertex)
-
-        # Convert the list of vertices into a numpy array
-        vertices = np.array(vertices)
-
-        # Calculate the geometric center by averaging the vertex positions
-        geometric_center = np.mean(vertices, axis=0)
-
-        return geometric_center
-
-    # This function is used to calculate the length of the surface in the x axis
-    @staticmethod
-    def calculate_surface_length(obj_filepath):
-                # Find the length of the surface along its longest axis
-                surface_vertices = []
-                with open(obj_filepath, 'r') as file:
-                    for line in file:
-                        if line.startswith('v '):
-                            parts = line.split()
-                            vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-                            surface_vertices.append(vertex)
-
-                surface_vertices = np.array(surface_vertices)
-                axis_lengths = np.ptp(surface_vertices, axis=0)  # Calculate the range (max - min) along each axis
-                longest_axis_length = np.max(axis_lengths)  # Find the maximum length among the axes
-                return longest_axis_length
-    
-    # This function is used to extract the cross-section vertices of the surface, it assumes the longest vertex is perpendicular to the cross-section
-    @staticmethod
-    def calculate_cross_section_dimensions(obj_filepath):
-        vertices = []
-        faces = []
-
-        # Open and read the .obj file
-        with open(obj_filepath, 'r') as file:
-            for line in file:
-                if line.startswith('v '):
-                    parts = line.split()
-                    vertex = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-                    vertices.append(vertex)
-                elif line.startswith('f '):
-                    parts = line.split()
-                    face = [int(idx.split('/')[0]) - 1 for idx in parts[1:]]
-                    faces.append(face)
-
-        vertices = np.array(vertices)
-
-        # Calculate the length of the surface along its longest axis
-        axis_lengths = np.ptp(vertices, axis=0)
-        longest_axis = np.argmax(axis_lengths)
-
-        # Find faces perpendicular to the longest axis
-        cross_section_faces = []
-        for face in faces:
-            face_vertices = vertices[face]
-            normal = np.cross(face_vertices[1] - face_vertices[0], face_vertices[2] - face_vertices[0])
-            normal = normal / np.linalg.norm(normal)
-            if np.isclose(normal[longest_axis], 0):
-                cross_section_faces.append(face)
-
-        # Find the longest and shortest edge of the cross-section faces
-        longest_edge = 0
-        shortest_edge = float('inf')
-        for face in cross_section_faces:
-            face_vertices = vertices[face]
-            num_vertices = len(face_vertices)
-            for i in range(num_vertices):
-                for j in range(i + 1, num_vertices):
-                    edge_length = np.linalg.norm(face_vertices[i] - face_vertices[j])
-                    if edge_length > longest_edge:
-                        longest_edge = edge_length
-                    if edge_length < shortest_edge:
-                        shortest_edge = edge_length
-
-        return longest_edge, shortest_edge
-
     # This function is used to initialise the workpiece in a random orientation
     @staticmethod
     def rand_orientation():
@@ -170,6 +99,12 @@ class DroptestsFaster:
 
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
+    
+    @staticmethod
+    def is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold=0.1):
+        # Check if the y coordinates are within the impulse_error_threshold
+        distance_y = abs(workpiece_hitpoint[1] - nozzle_position [1])
+        return distance_y < impulse_error_threshold
 
     def drop_tests(self):
         impulse_threshold = 0.1  # Define the impulse threshold for stopping
@@ -181,18 +116,25 @@ class DroptestsFaster:
         p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
-        # Find the geometric center of the surface
-        surface_geometric_center = self.calculate_geometric_center(str(self.surface_path / (self.surface_name + '.obj')))
+        # Initialise the surface
+        #--------------------------------------------------------------------------
+        surface_mesh = tm.load(str(self.surface_path / (self.surface_name + '.obj')))
 
-        # Find the length of the slide
-        surface_length = self.calculate_surface_length(str(self.surface_path / (self.surface_name + '.obj')))
+        # Find the length of the bounding box (axis-aligned) along each axis
+        axis_lengths = surface_mesh.bounding_box.extents
 
-        # Find the cross-section dimensions of the surface, the longest edge and also its thickness
-        cross_section_length, cross_section_thickness = self.calculate_cross_section_dimensions(str(self.surface_path/(self.surface_name + '.obj')))
+        # Find the longest axis length from the bounding box
+        surface_slide_length = max(axis_lengths)
+
+        # Find the cross section length of the surface (assuming it is a square)
+        surface_cross_section_size = min(axis_lengths)
+
+        # Calculate the lengths of the unique edges of the mesh and find the shortest one
+        surface_thickness = np.min(np.linalg.norm(surface_mesh.vertices[surface_mesh.edges_unique][:, 0] - surface_mesh.vertices[surface_mesh.edges_unique][:, 1], axis=1))
         
         # Determine the end point of the sliding action that the workpiece will reach on the surface
-        surface_end_point = (surface_length/2)*np.cos(np.radians(self.Alpha)) - ((cross_section_length-cross_section_thickness)/4)*np.sin(np.radians(self.Beta))*np.sin(np.radians(self.Alpha))
-                                  
+        surface_end_point = (surface_slide_length/2)*np.cos(np.radians(self.Alpha))
+        
         # Create a convex hull collision shape for the surface
         surface_collision_id = p.createCollisionShape(
             shapeType=p.GEOM_MESH,          # Specify that this is a mesh
@@ -211,32 +153,40 @@ class DroptestsFaster:
             baseMass=0.0,  # Static object
             baseCollisionShapeIndex=surface_collision_id,
             baseVisualShapeIndex=surface_vis_shape_id,
-            basePosition= [0,0,0],  
+            basePosition= [0,0,0],  # Place the surface at the origin (which is the geometric center)  
             baseOrientation= [0,0,0,1],  # first no rotation only translation to the center of the origin
-            baseInertialFramePosition=surface_geometric_center ,
+            baseInertialFramePosition=[0,0,0],
         )
-        
+
         # Create separate quaternions for rotation around the X and Y axes
         rotation_x = p.getQuaternionFromEuler([np.radians(self.Alpha), 0, 0])  # Rotation around X-axis
-        rotation_y = p.getQuaternionFromEuler([0, np.radians(self.Beta), 0])   # Rotation around Y-axis
+        rotation_y = p.getQuaternionFromEuler([0, np.radians(90-self.Beta), 0])   # Rotation around Y-axis
 
         # Combine both quaternions by multiplying them
         surface_rotation = p.multiplyTransforms([0, 0, 0], rotation_x, [0, 0, 0], rotation_y)[1]
 
         # Apply the combined rotation to the object in quaternion form to avoid gimbal lock
         p.resetBasePositionAndOrientation(surface_id, [0, 0, 0], surface_rotation)
-
-        # Load the workpiece model (use a simple object for this example)
+        
+        # Load the workpiece model
+        #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
-        workpiece_start_y = (surface_length/2 - 0.2)*np.cos(np.radians(self.Alpha))
-        workpiece_start_z = (surface_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) - 1
-        workpiece_start_pos = [0, workpiece_start_y, workpiece_start_z]  # Start 1 meter above the surface
+        workpiece_start_x = 0.1
+        workpiece_start_y = (surface_slide_length/2 - 0.2)*np.cos(np.radians(self.Alpha))
+        workpiece_start_z = (surface_slide_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) + 0.5
+        workpiece_start_pos = [workpiece_start_x, workpiece_start_y, workpiece_start_z]  # Start 1 meter above the surface
 
         # Random workpiece orientations defined in each iteration
         workpiece_start_orientation = self.rand_orientation()
 
+        # Create a mesh for the workpiece
+        workpiece_mesh = tm.load(str(self.workpiece_path / (self.workpiece_name + '.obj')))
+
         # Find the geometric center of the workpiece
-        workpiece_geometric_center = self.calculate_geometric_center(str(self.workpiece_path / (self.workpiece_name + '.obj')))
+        workpiece_geometric_center = workpiece_mesh.centroid
+
+        # Find the mass of the workpiece
+        workpiece_mass = workpiece_mesh.volume * 1100 # Density of Aqua 8K V4 Resin is 1100 kg/m³
         
         # Create the collision shape using the obj file
         # Create a convex hull collision shape for the workpiece
@@ -261,6 +211,33 @@ class DroptestsFaster:
             baseInertialFramePosition=workpiece_geometric_center,
         )
 
+        # initialise the nozzle
+        #--------------------------------------------------------------------------
+        # Determine the location of the nozzle on the surface
+        nozzle_position_x = self.nozzle_offset_perpendicular
+        nozzle_position_y = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.cos(np.radians(self.Alpha))
+        nozzle_position_z = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.sin(np.radians(self.Alpha))
+
+        nozzle_position = [nozzle_position_x, nozzle_position_y, nozzle_position_z]
+
+        workpiece_hitpoint = [workpiece_start_x, workpiece_start_y + self.hitpoint_offset_parallel, workpiece_start_z]
+        
+
+        # Calculate the nozzle direction considering the tilt angles Alpha and Beta
+        nozzle_direction = [
+            self.nozzle_impulse_force * np.sin(np.radians(self.Beta)),
+            self.nozzle_impulse_force * np.sin(np.radians(self.Alpha)),
+            self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta))
+        ]
+
+        impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
+        
+        nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
+        nozzle_marker = p.createMultiBody(
+            baseMass=0,
+            baseVisualShapeIndex=nozzle_visual_shape,
+            basePosition=nozzle_position 
+        )
         # DEBUGGING VISUALIZATIONS
         # ----------------------------------------------------------------------------   
 
@@ -271,12 +248,12 @@ class DroptestsFaster:
         #p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
 
         # Draw a sphere at the adjusted COM to visualize it
-        com_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
-        com_marker = p.createMultiBody(
-            baseMass=0,
-            baseVisualShapeIndex=com_visual_shape,
-            basePosition=workpiece_geometric_center
-        )
+        #com_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
+        #com_marker = p.createMultiBody(
+        #    baseMass=0,
+        #    baseVisualShapeIndex=com_visual_shape,
+        #    basePosition=[0, nozzle_position_y,nozzle_position_z]
+        #)
     
         # Update the COM marker position in each simulation step
         def update_com_marker():
@@ -288,7 +265,7 @@ class DroptestsFaster:
         p.changeDynamics(surface_id, -1, restitution=0.05, lateralFriction=0.04, linearDamping=0.04, angularDamping=0.1)
 
         # Set dynamic properties for the workpiece mass is in kg/m³ and the density of Aqua 8K V4 Resin is 1100 kg/m³
-        p.changeDynamics(workpiece_id, -1, mass=1, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
+        p.changeDynamics(workpiece_id, -1, mass=workpiece_mass, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
 
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
@@ -324,10 +301,13 @@ class DroptestsFaster:
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
 
-                    update_com_marker()
+                    #update_com_marker()
 
                     # Get the workpiece's current position and orientation
                     position, bullet_orientation = p.getBasePositionAndOrientation(workpiece_id)
+
+                    # update the workpiece hitpoint location
+                    workpiece_hitpoint = [position[0], position[1] + self.hitpoint_offset_parallel, position[2]]
 
                     # Apply an orientation to negate Alpha and Beta
                     # Create a quaternion to negate Alpha and Beta rotations
@@ -351,10 +331,8 @@ class DroptestsFaster:
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
 
-                    #for contact in contact_points:
-                    #    print(f"Contact Point: Position {contact[5]}, Normal {contact[7]}, Distance {contact[8]}")
                     print(f"Number of Contact Points: {len(contact_points)}")
-                    print(f"Length of the slide: {surface_length}")
+                    
                     # Slow down the simulation to match real-time (optional)
                     time.sleep(1 / 240.)
 
@@ -364,7 +342,12 @@ class DroptestsFaster:
                     #    self.set_workpiece_velocity(workpiece_id, self.workpiece_feed_speed, [0,-np.cos(np.radians(self.Alpha)),np.sin(np.radians(self.Alpha))])
                     #    apply_velocity = False
 
-                    # Stop the simulation when the workpiece reaches the end of the slide (surface_length/2)*np.cos(np.radians(self.Alpha))
+                    # Check if CoG is over impulse location
+                    if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
+                        # Apply impulse force
+                        p.applyExternalForce(workpiece_id, -1, nozzle_direction, nozzle_position , p.WORLD_FRAME)
+
+                    # Stop the simulation when the workpiece reaches the end of the slide
                     if position[1] < -surface_end_point:
                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
                        break

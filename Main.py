@@ -34,11 +34,19 @@ simulation_number = 10
 
 # MODIFIABLE SURFACE PARAMETERS:
 
-Alpha = 0.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-Beta = 45.0 # degrees
+Beta = 40.0 # degrees
 
 workpiece_feed_speed = 10.0 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+
+hitpoint_offset_parallel = 0.0 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
+
+nozzle_offset_parallel = 0.0 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+
+nozzle_offset_perpendicular = 0.0 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+
+nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiece
 
 #Create an .obj file if it does not already exist for the bullet engine
 
@@ -61,7 +69,11 @@ drop_tests_simulator.config(
     simulation_number=simulation_number,
     Alpha = Alpha,
     Beta = Beta,
-    workpiece_feed_speed = workpiece_feed_speed
+    workpiece_feed_speed = workpiece_feed_speed,
+    hitpoint_offset_parallel = hitpoint_offset_parallel,
+    nozzle_offset_parallel = nozzle_offset_parallel,
+    nozzle_offset_perpendicular = nozzle_offset_perpendicular,
+    nozzle_impulse_force = nozzle_impulse_force,
 )
 
 # Generate the simulation data and write to csv files to store simulation data
