@@ -29,9 +29,12 @@ class DroptestsFaster:
         # This is the feeding speed of the workpiece before it begins to slide down the surface
         self.workpiece_feed_speed = 5.0
 
-        # This is the offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+        # This is the offset of the hitpoint on one of the slide surfaces parallel to the sliding axis from the input end of the surface
         self.hitpoint_offset_parallel = 0.0
 
+        # This is the offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+        self.nozzle_offset_parallel = 0.0
+        
         # This is the offset of the nozzle on one of the slide surfaces perpendicular from the sliding axis
         self.nozzle_offset_perpendicular = 0.0
 
@@ -39,6 +42,7 @@ class DroptestsFaster:
         self.nozzle_impulse_force = 0.0
 
         #--------------------------------------------------------------------------
+        
         # This is the current file path of the data stored relative to the script
         self.data_path = Path(__file__).parent / 'SimulationData' / 'MHI_Data'
 
@@ -171,9 +175,10 @@ class DroptestsFaster:
         # Load the workpiece model
         #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
-        workpiece_start_x = 0.1
+        workpiece_start_x = self.nozzle_offset_perpendicular * np.cos(np.radians(self.Beta))
         workpiece_start_y = (surface_slide_length/2 - 0.2)*np.cos(np.radians(self.Alpha))
-        workpiece_start_z = (surface_slide_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) + 0.5
+        workpiece_start_z = ((surface_slide_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) + 
+                             self.nozzle_offset_perpendicular * np.sin(np.radians(self.Beta)) + 0.5)
         workpiece_start_pos = [workpiece_start_x, workpiece_start_y, workpiece_start_z]  # Start 1 meter above the surface
 
         # Random workpiece orientations defined in each iteration
@@ -214,9 +219,10 @@ class DroptestsFaster:
         # initialise the nozzle
         #--------------------------------------------------------------------------
         # Determine the location of the nozzle on the surface
-        nozzle_position_x = self.nozzle_offset_perpendicular
-        nozzle_position_y = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.cos(np.radians(self.Alpha))
-        nozzle_position_z = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.sin(np.radians(self.Alpha))
+        nozzle_position_x = self.nozzle_offset_perpendicular * np.cos(np.radians(self.Beta))
+        nozzle_position_y = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.cos(np.radians(self.Alpha) + 
+            self.nozzle_offset_perpendicular * np.sin(np.radians(self.Beta)))
+        nozzle_position_z = (((surface_slide_length - self.nozzle_offset_parallel) / 2) * np.sin(np.radians(self.Alpha)))
 
         nozzle_position = [nozzle_position_x, nozzle_position_y, nozzle_position_z]
 
@@ -226,12 +232,12 @@ class DroptestsFaster:
         # Calculate the nozzle direction considering the tilt angles Alpha and Beta
         nozzle_direction = [
             self.nozzle_impulse_force * np.sin(np.radians(self.Beta)),
-            self.nozzle_impulse_force * np.sin(np.radians(self.Alpha)),
-            self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta))
+            self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta)),
+            self.nozzle_impulse_force * np.sin(np.radians(self.Alpha))
         ]
 
         impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
-        
+
         nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
         nozzle_marker = p.createMultiBody(
             baseMass=0,
@@ -346,6 +352,7 @@ class DroptestsFaster:
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
                         # Apply impulse force
                         p.applyExternalForce(workpiece_id, -1, nozzle_direction, nozzle_position , p.WORLD_FRAME)
+                        print("impulse applied")
 
                     # Stop the simulation when the workpiece reaches the end of the slide
                     if position[1] < -surface_end_point:
