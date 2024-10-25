@@ -4,6 +4,7 @@ import pybullet_data
 import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
+import MyQuaternions as mq
 import trimesh as tm
 
 class DroptestsFaster:
@@ -130,12 +131,6 @@ class DroptestsFaster:
         # Find the longest axis length from the bounding box
         surface_slide_length = max(axis_lengths)
 
-        # Find the cross section length of the surface (assuming it is a square)
-        surface_cross_section_size = min(axis_lengths)
-
-        # Calculate the lengths of the unique edges of the mesh and find the shortest one
-        surface_thickness = np.min(np.linalg.norm(surface_mesh.vertices[surface_mesh.edges_unique][:, 0] - surface_mesh.vertices[surface_mesh.edges_unique][:, 1], axis=1))
-        
         # Determine the end point of the sliding action that the workpiece will reach on the surface
         surface_end_point = (surface_slide_length/2)*np.cos(np.radians(self.Alpha))
         
@@ -164,7 +159,7 @@ class DroptestsFaster:
 
         # Create separate quaternions for rotation around the X and Y axes
         rotation_x = p.getQuaternionFromEuler([np.radians(self.Alpha), 0, 0])  # Rotation around X-axis
-        rotation_y = p.getQuaternionFromEuler([0, np.radians(90-self.Beta), 0])   # Rotation around Y-axis
+        rotation_y = p.getQuaternionFromEuler([0, -np.radians(self.Beta), 0])   # Rotation around Y-axis
 
         # Combine both quaternions by multiplying them
         surface_rotation = p.multiplyTransforms([0, 0, 0], rotation_x, [0, 0, 0], rotation_y)[1]
@@ -219,22 +214,34 @@ class DroptestsFaster:
         # initialise the nozzle
         #--------------------------------------------------------------------------
         # Determine the location of the nozzle on the surface
-        nozzle_position_x = self.nozzle_offset_perpendicular * np.cos(np.radians(self.Beta))
-        nozzle_position_y = ((surface_slide_length - self.nozzle_offset_parallel)/2)*np.cos(np.radians(self.Alpha) + 
-            self.nozzle_offset_perpendicular * np.sin(np.radians(self.Beta)))
-        nozzle_position_z = (((surface_slide_length - self.nozzle_offset_parallel) / 2) * np.sin(np.radians(self.Alpha)))
 
-        nozzle_position = [nozzle_position_x, nozzle_position_y, nozzle_position_z]
+        # Define the local position of the nozzle relative to the surface
+        local_nozzle_position = [
+            self.nozzle_offset_perpendicular,
+            (surface_slide_length - self.nozzle_offset_parallel) / 2,
+            0
+        ]
 
-        workpiece_hitpoint = [workpiece_start_x, workpiece_start_y + self.hitpoint_offset_parallel, workpiece_start_z]
+        # Apply the surface rotation to the local nozzle position
+        nozzle_position, _ = p.multiplyTransforms(
+            [0, 0, 0], surface_rotation, local_nozzle_position, [0, 0, 0, 1]
+        )
+
+        workpiece_hitpoint = [workpiece_start_x, workpiece_start_y - self.hitpoint_offset_parallel, workpiece_start_z]
         
 
         # Calculate the nozzle direction considering the tilt angles Alpha and Beta
-        nozzle_direction = [
-            self.nozzle_impulse_force * np.sin(np.radians(self.Beta)),
-            self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta)),
-            self.nozzle_impulse_force * np.sin(np.radians(self.Alpha))
-        ]
+        #nozzle_direction = [
+        #    -self.nozzle_impulse_force * np.sin(np.radians(self.Beta)),
+        #    -self.nozzle_impulse_force * np.sin(np.radians(self.Alpha)),
+        #    self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta))
+        #]
+
+        nozzle_direction = p.multiplyTransforms([0, 0, 0], surface_rotation, [0, 0, 1], [0, 0, 0, 1])[1]
+        
+        nozzle_force = [self.nozzle_impulse_force * nozzle_direction[1], self.nozzle_impulse_force * nozzle_direction[2], self.nozzle_impulse_force * nozzle_direction[3]]
+
+        print(abs(np.sqrt(nozzle_force[0]**2 + nozzle_force[1]**2 + nozzle_force[2]**2)))
 
         impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
 
@@ -337,7 +344,7 @@ class DroptestsFaster:
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
 
-                    print(f"Number of Contact Points: {len(contact_points)}")
+                    # print(f"Number of Contact Points: {len(contact_points)}")
                     
                     # Slow down the simulation to match real-time (optional)
                     time.sleep(1 / 240.)
@@ -351,7 +358,7 @@ class DroptestsFaster:
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
                         # Apply impulse force
-                        p.applyExternalForce(workpiece_id, -1, nozzle_direction, nozzle_position , p.WORLD_FRAME)
+                        p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
                         print("impulse applied")
 
                     # Stop the simulation when the workpiece reaches the end of the slide

@@ -39,15 +39,15 @@ Alpha = 0.0 # degrees (set this to 90 when using the plane surface so that it is
 
 Beta = 0.0 # degrees
 
-workpiece_feed_speed = 10.0 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+workpiece_feed_speed = 1.0 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
 hitpoint_offset_parallel = 0.0 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
 nozzle_offset_parallel = 1.0 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular = 0.2 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular = 1.0 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force = 100.0 # impulse force applied by the nozzle to the workpiece
+nozzle_impulse_force = 1000.0 # impulse force applied by the nozzle to the workpiece
 
 #Create an .obj file if it does not already exist for the bullet engine
 
