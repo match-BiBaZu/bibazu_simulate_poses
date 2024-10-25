@@ -30,32 +30,32 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 10
+simulation_number = 20
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-Alpha = 0.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-Beta = 0.0 # degrees
+Beta = 45.0 # degrees
 
-workpiece_feed_speed = 1.0 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+workpiece_feed_speed = 0.001 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
-hitpoint_offset_parallel = 0.0 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
+hitpoint_offset_parallel = 0.002 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
-nozzle_offset_parallel = 1.0 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+nozzle_offset_parallel = 0.1 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular = 1.0 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular = 0.02 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force = 1000.0 # impulse force applied by the nozzle to the workpiece
+nozzle_impulse_force = 5.0 # impulse force applied by the nozzle to the workpiece
 
 #Create an .obj file if it does not already exist for the bullet engine
 
 #if not (workpiece_path / (workpiece_name + '.obj')).exists():
-stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.01)
+stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
 
 #if not (surface_path / (surface_name + '.obj')).exists():
-stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.1)
+stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
 
 # Create an instance to generate simulation data
 drop_tests_simulator = dtf.DroptestsFaster()

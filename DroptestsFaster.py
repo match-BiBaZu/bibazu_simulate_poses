@@ -104,12 +104,12 @@ class DroptestsFaster:
 
         workpiece_start_orientation = p.getQuaternionFromEuler([rand_rot_x_W , rand_rot_y_W, rand_rot_z_W])
         return workpiece_start_orientation
-    
+
     @staticmethod
-    def is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold=0.1):
-        # Check if the y coordinates are within the impulse_error_threshold
-        distance_y = abs(workpiece_hitpoint[1] - nozzle_position [1])
-        return distance_y < impulse_error_threshold
+    def is_over_location(workpiece_hitpoint, nozzle_position, impulse_error_threshold=0.1):
+        # Calculate the Euclidean distance between the workpiece hitpoint and the nozzle position
+        distance = workpiece_hitpoint[1] - nozzle_position[1]
+        return abs(distance) < impulse_error_threshold
 
     def drop_tests(self):
         impulse_threshold = 0.1  # Define the impulse threshold for stopping
@@ -170,11 +170,11 @@ class DroptestsFaster:
         # Load the workpiece model
         #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
-        workpiece_start_x = self.nozzle_offset_perpendicular * np.cos(np.radians(self.Beta))
-        workpiece_start_y = (surface_slide_length/2 - 0.2)*np.cos(np.radians(self.Alpha))
-        workpiece_start_z = ((surface_slide_length/2 - 0.2)*np.sin(np.radians(self.Alpha)) + 
-                             self.nozzle_offset_perpendicular * np.sin(np.radians(self.Beta)) + 0.5)
-        workpiece_start_pos = [workpiece_start_x, workpiece_start_y, workpiece_start_z]  # Start 1 meter above the surface
+        # Define the local starting position of the workpiece relative to the surface
+        local_workpiece_start_pos = [self.nozzle_offset_perpendicular, (surface_slide_length / 2 - 0.02), 0.05 ]
+
+        # Apply the surface rotation to the local starting position
+        workpiece_start_pos, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_workpiece_start_pos, [0, 0, 0, 1] )
 
         # Random workpiece orientations defined in each iteration
         workpiece_start_orientation = self.rand_orientation()
@@ -207,6 +207,10 @@ class DroptestsFaster:
             baseCollisionShapeIndex=workpiece_collision_id,
             baseVisualShapeIndex=workpiece_vis_shape_id,
             basePosition=workpiece_start_pos,
+        # initialise the nozzle
+        #--------------------------------------------------------------------------
+        # Determine the location of the nozzle on the surface
+
             baseOrientation=workpiece_start_orientation,
             baseInertialFramePosition=workpiece_geometric_center,
         )
@@ -216,36 +220,28 @@ class DroptestsFaster:
         # Determine the location of the nozzle on the surface
 
         # Define the local position of the nozzle relative to the surface
-        local_nozzle_position = [
-            self.nozzle_offset_perpendicular,
-            (surface_slide_length - self.nozzle_offset_parallel) / 2,
-            0
-        ]
+        local_nozzle_position = [self.nozzle_offset_perpendicular,(surface_slide_length - self.nozzle_offset_parallel) / 2,0]
 
         # Apply the surface rotation to the local nozzle position
-        nozzle_position, _ = p.multiplyTransforms(
-            [0, 0, 0], surface_rotation, local_nozzle_position, [0, 0, 0, 1]
-        )
+        nozzle_position, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_nozzle_position, [0, 0, 0, 1])
 
-        workpiece_hitpoint = [workpiece_start_x, workpiece_start_y - self.hitpoint_offset_parallel, workpiece_start_z]
+        workpiece_hitpoint = [workpiece_start_pos[0], workpiece_start_pos[1] + self.hitpoint_offset_parallel, workpiece_start_pos[2]]
+
+        # Convert the quaternion result to a rotation matrix
+        rotation_matrix = p.getMatrixFromQuaternion(surface_rotation)
+
+        # Extract the Z-axis vector from the rotation matrix
+        nozzle_direction = [-rotation_matrix[6], -rotation_matrix[7], rotation_matrix[8]] # set the values to negative as the rotations are in the opposite direction
+
+        # Normalize the nozzle direction vector
+        nozzle_direction = np.array(nozzle_direction) / np.linalg.norm(nozzle_direction)
+
+        nozzle_force = [self.nozzle_impulse_force * nozzle_direction[0], self.nozzle_impulse_force * nozzle_direction[1], self.nozzle_impulse_force * nozzle_direction[2]]
+
+        impulse_error_threshold = 0.001  # Threshold for checking when CoG passes over the point
+
+        nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.005, rgbaColor=[1, 0, 0, 1])  # Red sphere
         
-
-        # Calculate the nozzle direction considering the tilt angles Alpha and Beta
-        #nozzle_direction = [
-        #    -self.nozzle_impulse_force * np.sin(np.radians(self.Beta)),
-        #    -self.nozzle_impulse_force * np.sin(np.radians(self.Alpha)),
-        #    self.nozzle_impulse_force * np.cos(np.radians(self.Alpha)) * np.cos(np.radians(self.Beta))
-        #]
-
-        nozzle_direction = p.multiplyTransforms([0, 0, 0], surface_rotation, [0, 0, 1], [0, 0, 0, 1])[1]
-        
-        nozzle_force = [self.nozzle_impulse_force * nozzle_direction[1], self.nozzle_impulse_force * nozzle_direction[2], self.nozzle_impulse_force * nozzle_direction[3]]
-
-        print(abs(np.sqrt(nozzle_force[0]**2 + nozzle_force[1]**2 + nozzle_force[2]**2)))
-
-        impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
-
-        nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
         nozzle_marker = p.createMultiBody(
             baseMass=0,
             baseVisualShapeIndex=nozzle_visual_shape,
@@ -267,7 +263,15 @@ class DroptestsFaster:
         #    baseVisualShapeIndex=com_visual_shape,
         #    basePosition=[0, nozzle_position_y,nozzle_position_z]
         #)
-    
+
+        # Add the vector as a debug line in PyBullet
+        p.addUserDebugLine(
+            nozzle_position,
+            [nozzle_position[i] + nozzle_direction[i] for i in range(3)],  # End point of the vector
+            lineColorRGB=[0.1, 0, 0],  # Color of the vector (red)
+            lineWidth=3,             # Line width
+            lifeTime=0               # Duration the line will persist, 0 for infinite
+        )
         # Update the COM marker position in each simulation step
         def update_com_marker():
             com_position, _ = p.getBasePositionAndOrientation(workpiece_id)
@@ -309,7 +313,6 @@ class DroptestsFaster:
                 p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
                 # Apply an initial velocity to the workpiece after resetting its position and orientation
                 p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
-
                 # Run the simulation
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
@@ -357,9 +360,12 @@ class DroptestsFaster:
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
-                        # Apply impulse force
+                        # Apply impulse force continuously
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
                         print("impulse applied")
+                    else:
+                        # Ensure no force is applied when not over the location
+                        p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
 
                     # Stop the simulation when the workpiece reaches the end of the slide
                     if position[1] < -surface_end_point:
