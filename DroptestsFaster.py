@@ -22,10 +22,10 @@ class DroptestsFaster:
         # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
         # This is the tilt angle of the slide along it's 'sliding' axis
-        self.Alpha = 0.0
+        self.Alpha = 20.0
 
         # This is the tilt angle of the slide perpendicular to it's 'sliding' axis
-        self.Beta = 0.0
+        self.Beta = 45.0
 
         # This is the feeding speed of the workpiece before it begins to slide down the surface
         self.workpiece_feed_speed = 5.0
@@ -34,13 +34,13 @@ class DroptestsFaster:
         self.hitpoint_offset_parallel = 0.0
 
         # This is the offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
-        self.nozzle_offset_parallel = 0.0
+        self.nozzle_offset_parallel = 0.1
         
         # This is the offset of the nozzle on one of the slide surfaces perpendicular from the sliding axis
-        self.nozzle_offset_perpendicular = 0.0
+        self.nozzle_offset_perpendicular = 0.02
 
         # This is the impulse force applied by the nozzle to the workpiece
-        self.nozzle_impulse_force = 0.0
+        self.nozzle_impulse_force = 0.1
 
         #--------------------------------------------------------------------------
         
@@ -286,15 +286,18 @@ class DroptestsFaster:
 
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
-        workpiece_location_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')
+        workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_angular_velocity.txt')
+        workpiece_contact_points_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_contact_points.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_quaternion.txt')
 
         # Initialize matricies to store simulation data
-        matrix_location = []
         matrix_rotation_quaternion = []
+        matrix_angular_velocity = []
+        matrix_contact_points = []
 
         # Clear the text files before starting (open in 'w' mode)
-        with open(workpiece_location_path, 'w') as loc_file, \
+        with open(workpiece_angular_velocity_path, 'w') as ang_vel_file, \
+            open(workpiece_contact_points_path, 'w') as contact_points_file, \
             open(workpiece_quaternion_path, 'w') as quat_file:
             pass  # Just opening the files in 'w' mode will clear them
 
@@ -320,7 +323,7 @@ class DroptestsFaster:
                     #update_com_marker()
 
                     # Get the workpiece's current position and orientation
-                    position, bullet_orientation = p.getBasePositionAndOrientation(workpiece_id)
+                    position, orientation = p.getBasePositionAndOrientation(workpiece_id)
 
                     # update the workpiece hitpoint location
                     workpiece_hitpoint = [position[0], position[1] + self.hitpoint_offset_parallel, position[2]]
@@ -330,7 +333,7 @@ class DroptestsFaster:
                     negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
 
                     # Use PyBullet's multiplyTransforms to multiply quaternions
-                    _, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], bullet_orientation)
+                    _, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], orientation)
 
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
@@ -360,7 +363,19 @@ class DroptestsFaster:
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
-                        # Apply impulse force continuously
+                        pre_impulse_orientation = blender_orientation
+                        pre_impulse_angular_velocity = angular_velocity
+                        pre_impulse_contact_points = contact_points
+
+                        workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
+                        workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
+                        workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                        workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
+                        workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
+                        workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
+                        workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+                        
+                        # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
                         print("impulse applied")
                     else:
@@ -374,18 +389,27 @@ class DroptestsFaster:
    
                 print(f"Simulation {current_simulation}, Step {step}")
                 current_simulation+= 1
-                matrix_location.append(position)
-                matrix_rotation_quaternion.append(blender_orientation)
+                
+                combined_orientation = np.concatenate((bullet_orientation, pre_impulse_orientation))                            
+                combined_angular_velocity = np.concatenate((angular_velocity, pre_impulse_angular_velocity))
+                combined_contact_points = [len(contact_points),len(pre_impulse_contact_points)]
+
+                matrix_rotation_quaternion.append(combined_orientation)
+                matrix_angular_velocity.append(combined_angular_velocity)
+                matrix_contact_points.append(combined_contact_points)
 
                 # Write iteration data to workpiece_data
                 workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
                 workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
                 workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
+                workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
+                workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
             
             # Save the simulation data
-            np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
+            np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')
+            np.savetxt(workpiece_contact_points_path, np.array(matrix_contact_points), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
 
 
