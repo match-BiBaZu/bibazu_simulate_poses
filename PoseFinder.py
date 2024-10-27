@@ -4,6 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from enum import Enum
+
+class PoseFindingMode(Enum):
+    TORGE = 'torge'
+    QUAT = 'quaternion'
+    QUAT_COMPARE = 'quat_compare'
+
 
 class PoseFinder:
     def __init__(self): #default values
@@ -20,9 +27,17 @@ class PoseFinder:
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
         # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_location = np.zeros((self.simulation_number, 3))
         self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
-        
+        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 4))
+
+        # These are the arrays that are used to store the angular velocities determined by the simulation
+        self.array_angular_velocity = np.zeros((self.simulation_number, 3))
+        self.array_pre_impulse_angular_velocity = np.zeros((self.simulation_number, 3))
+
+        # These are the arrays that are used to store the number of contact points determined by the simulation
+        self.array_contact_points = np.zeros((self.simulation_number, 1))
+        self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1))    
+
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
         
@@ -37,9 +52,13 @@ class PoseFinder:
             self.workpiece_path = kwargs['workpiece_path']
         if 'simulation_number' in kwargs:
             self.simulation_number = kwargs['simulation_number']
-        
+        if 'mode' in kwargs:
+            if isinstance(kwargs['mode'], PoseFindingMode):
+                self.mode = kwargs['mode']
+            else:
+                raise ValueError("Invalid mode. Must be of type PoseFindingMode.")
+
         # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_location = np.zeros((self.simulation_number, 3))
         self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
         
         # This is the loaded STL file of the workpiece
@@ -47,9 +66,33 @@ class PoseFinder:
     
     def import_orientation_csv(self):
         # Import data from the simulation CSV files into arrays
-        self.array_location = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_location.txt')), dtype=float).reshape(-1, 3)
-        self.array_quaternion_blend[:, :4] = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_quaternion.txt')), dtype=float).reshape(-1, 4)
+        data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
+        
+        if data.shape[1] == 4:
+            self.array_quaternion_blend[:, :4] = data.reshape(-1, 4)
+        elif data.shape[1] == 8:
+            self.array_quaternion_blend[:, :4] = data[:, :4].reshape(-1, 4)
+            self.array_pre_impulse_quaternion_blend = data[:, 4:].reshape(-1, 4)
+        else:
+            raise ValueError("Unexpected number of columns in the input file.")
 
+        # Import angular velocity data
+        angular_velocity_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')), dtype=float)
+        
+        if angular_velocity_data.shape[1] == 6:
+            self.array_angular_velocity = angular_velocity_data[:, :3]
+            self.array_pre_impulse_angular_velocity = angular_velocity_data[:, 3:]
+        else:
+            raise ValueError("Unexpected number of columns in the angular velocity input file.")
+
+        # Import contact points data
+        contact_points_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_contact_points.txt')), dtype=float)
+
+        if contact_points_data.shape[1] == 2:
+            self.array_contact_points = contact_points_data[:, 0].reshape(-1, 1)
+            self.array_pre_impulse_contact_points = contact_points_data[:, 1].reshape(-1, 1)
+        else:
+            raise ValueError("Unexpected number of columns in the contact points input file.")
 
     # Quaternion operations that the find_poses function requres
     @staticmethod
@@ -91,19 +134,19 @@ class PoseFinder:
 
     # This function classifies pose of workpieces according to their orientation determined in quaternion space, then converts to euler
     # (original function from Torge)
-    def find_poses(self):
+    def find_poses_torge(self, array_quaternion_pose):
 
         n = 1
-        eps = 0.3 #Arbitrarily determined thresholding parameter to seperate regions of rotation into poses
+        eps = 0.3  # Arbitrarily determined thresholding parameter to separate regions of rotation into poses
 
-        for i in range(len(self.array_quaternion_blend)):
-            if self.array_quaternion_blend[i, 4] == 0:
-                self.array_quaternion_blend[i, 4] = n
+        for i in range(len(array_quaternion_pose)):
+            if array_quaternion_pose[i, 4] == 0:
+                array_quaternion_pose[i, 4] = n
 
-                x = self.array_quaternion_blend[i, :4]  # KS1 - Quaternion (w, x, y, z)
+                x = array_quaternion_pose[i, :4]  # KS1 - Quaternion (w, x, y, z)
                 
-                for j in range(i+1, len(self.array_quaternion_blend)):
-                    y = self.array_quaternion_blend[j, :4]  # KS2 - Quaternion (w, x, y, z)
+                for j in range(i+1, len(array_quaternion_pose)):
+                    y = array_quaternion_pose[j, :4]  # KS2 - Quaternion (w, x, y, z)
                     
                     # Normalize the quaternions
                     x = self.normalize_quat(x)
@@ -136,35 +179,36 @@ class PoseFinder:
                     r_z_KS0 = vector_r_0[2]
 
                     # Check if the quaternion belongs to the same pose
-                    if self.array_quaternion_blend[j, 4] == 0.0:
+                    if array_quaternion_pose[j, 4] == 0.0:
                         if ((0.0-eps <= r_x_KS0 <= 0.0+eps) and 
                             (0.0-eps <= r_y_KS0 <= 0.0+eps)):
-                            self.array_quaternion_blend[j, 4] = n
+                            array_quaternion_pose[j, 4] = n
                             #print(n)
                             #print(f"same pose at j {j}")
                         #else:
                             #print(f"different pose at j {j}")
 
                 #print(f"here n iterates: {n}")
-                self.array_quaternion_blend[i, 4] = n
+                array_quaternion_pose[i, 4] = n
                 n += 1
+        return array_quaternion_pose
 
-    def find_poses_quat(self):
+    def find_poses_quat(self,array_quaternion_pose):
 
         n = 1  # Initialize the cluster label counter
         rot_diff_threshold = 45  # Threshold that can be adjusted as needed (in degrees)
 
         # Loop over each quaternion
-        for i in range(len(self.array_quaternion_blend)):
+        for i in range(len(array_quaternion_pose)):
 
-            if self.array_quaternion_blend[i, 4] == 0.0:  # Check the 5th column (index 4) for assignment
-                self.array_quaternion_blend[i, 4] = n  # Assign the current quaternion to the current cluster
+            if array_quaternion_pose[i, 4] == 0.0:  # Check the 5th column (index 4) for assignment
+                array_quaternion_pose[i, 4] = n  # Assign the current quaternion to the current cluster
 
-                quat_i = self.array_quaternion_blend[i, :4]  # Extract the quaternion (first 4 elements)
+                quat_i = array_quaternion_pose[i, :4]  # Extract the quaternion (first 4 elements)
 
-                for j in range(i+1, len(self.array_quaternion_blend)):
-                    if self.array_quaternion_blend[j, 4] == 0:  # Check if this quaternion has not yet been assigned a cluster
-                        quat_j = self.array_quaternion_blend[j, :4]  # Extract the quaternion
+                for j in range(i+1, len(array_quaternion_pose)):
+                    if array_quaternion_pose[j, 4] == 0:  # Check if this quaternion has not yet been assigned a cluster
+                        quat_j = array_quaternion_pose[j, :4]  # Extract the quaternion
 
                         # Normalize the quaternions
                         quat_i = self.normalize_quat(quat_i)
@@ -177,16 +221,17 @@ class PoseFinder:
                         # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
                         # Therefore if the rotation is smaller than the threshold the scalar compoent will be bigger than
                         # the cosine of the threshold
-                        if self.array_quaternion_blend[j, 4] == 0.0:  # If pose not classified
+                        if array_quaternion_pose[j, 4] == 0.0:  # If pose not classified
                             if quat_diff[0] >= np.cos((rot_diff_threshold*np.pi)/360): # Check the scalar component
-                                self.array_quaternion_blend[j, 4] = n  # Assign the same cluster label
+                                array_quaternion_pose[j, 4] = n  # Assign the same cluster label
                                 print(n)
                                 print(f"same pose at j {j}")
                             else:
                                 print(f"different pose at j {j}")
 
-                self.array_quaternion_blend[i, 4] = n
+                array_quaternion_pose[i, 4] = n
                 n += 1  # Move to the next cluster label
+        return array_quaternion_pose
 
 
     # helper function to convert euler to rotational matricies
@@ -208,28 +253,65 @@ class PoseFinder:
         # Combined rotation matrix
         return np.dot(np.dot(Rz, Ry), Rx)
     
-    def plot_poses_quat(self):
+    def find_poses(self):
+        """
+        Finds poses of the workpiece based on the current mode.
+
+        Parameters:
+        - array_quaternion_pose: numpy array containing quaternion pose data.
+
+        Returns:
+        - Updated array_quaternion_pose with poses classified.
+        """
+        if self.mode == PoseFindingMode.TORGE:
+            self.array_quaternion_blend = self.find_poses_quat(self.array_quaternion_blend)
+
+            self.plot_mesh_visualization(self.array_quaternion_blend)
+            self.plot_frequency_histogram(self.array_quaternion_blend)
+            self.plot_pose_pie_chart(self.array_quaternion_blend)
+        elif self.mode == PoseFindingMode.QUAT:
+
+            self.array_quaternion_blend = self.find_poses_quat(self.array_quaternion_blend)
+
+            self.plot_mesh_visualization(self.array_quaternion_blend)
+            self.plot_frequency_histogram(self.array_quaternion_blend)
+            self.plot_pose_pie_chart(self.array_quaternion_blend)
+
+        elif self.mode == PoseFindingMode.QUAT_COMPARE:
+            concatenated_quaternions = np.concatenate((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend), axis=1)
+            concatenated_quaternions = self.find_poses_torge(concatenated_quaternions)
+
+            self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number, :4]
+            self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:, :4]
+
+            self.plot_mesh_visualization(concatenated_quaternions)
+        
+        else:
+            raise ValueError("Invalid mode specified.")
+
+    
+    def plot_poses_quat(self,array_quaternion_pose):
         
             # Load STL file
             points_stl = self.workpiece_stl.vectors.reshape(-1, 3)  # STL points
             cList_stl = np.arange(len(points_stl)).reshape(-1, 3)  # Connectivity list for trimesh
 
             # The overall number of poses
-            total_poses = int(np.max(self.array_quaternion_blend[:, 4]))
+            total_poses = int(np.max(array_quaternion_pose[:, 4]))
 
             # Figure 1: meshes of frequency of stable poses
             fig = plt.figure(figsize=(12, 8), constrained_layout=True)
 
             # Step 1: Precompute all transformed points once to avoid recalculating
-            m_values = self.array_quaternion_blend[:, 4]  # Pose numbers
+            m_values = array_quaternion_pose[:, 4]  # Pose numbers
             unique_poses = np.unique(m_values)  # Get the unique poses
             num_poses = len(unique_poses)  # Number of unique poses
 
             rotated_points_by_pose = []
             for m in unique_poses:
                 # Get quaternion for the current pose
-                pose_indices = np.where(self.array_quaternion_blend[:, 4] == m)[0]
-                quat = self.array_quaternion_blend[pose_indices[0], :4]
+                pose_indices = np.where(array_quaternion_pose[:, 4] == m)[0]
+                quat = array_quaternion_pose[pose_indices[0], :4]
 
                 # Compute rotation matrix once for the pose
                 rotm = self.quat_to_rot_matrix(quat)
@@ -280,7 +362,7 @@ class PoseFinder:
             plt.show()
 
             # Figure 2: histogram of frequency of stable poses
-            stable_poses_frequency, bin_edges = np.histogram(self.array_quaternion_blend[:, 4], bins=np.arange(1, total_poses + 2))
+            stable_poses_frequency, bin_edges = np.histogram(array_quaternion_pose[:, 4], bins=np.arange(1, total_poses + 2))
             
             # Plot the histogram
             plt.figure()
@@ -297,7 +379,7 @@ class PoseFinder:
 
             for m in range(1, total_poses + 1):
                 abs_str = str(stable_poses_frequency[m - 1])
-                percentage_str = str(round(stable_poses_frequency[m - 1] / (len(self.array_quaternion_blend) / 100), 2))
+                percentage_str = str(round(stable_poses_frequency[m - 1] / (len(array_quaternion_pose) / 100), 2))
                 labels.append(f"Pose {m} (n = {abs_str})")
                 labels_pie.append(f"Pose {m} ({percentage_str}%)")
 
@@ -310,3 +392,99 @@ class PoseFinder:
             plt.title(f"Natural Resting Position -" + self.workpiece_name)
             plt.legend(labels, loc='center left', bbox_to_anchor=(1.2, 0.5))  # Add legend to the right side
             plt.show()
+    
+    def plot_mesh_visualization(self, array_quaternion_pose):
+        """
+        Plots the mesh visualization of the workpiece for each classified pose.
+
+        Parameters:
+        - array_quaternion_pose: numpy array containing quaternion pose data with classified poses.
+        """
+        # Load STL file
+        points_stl = self.workpiece_stl.vectors.reshape(-1, 3)
+        cList_stl = np.arange(len(points_stl)).reshape(-1, 3)
+
+        # The overall number of poses
+        total_poses = int(np.max(array_quaternion_pose[:, 4]))
+
+        # Precompute all transformed points once
+        m_values = array_quaternion_pose[:, 4]
+        unique_poses = np.unique(m_values)
+        num_poses = len(unique_poses)
+
+        rotated_points_by_pose = []
+        for m in unique_poses:
+            pose_indices = np.where(array_quaternion_pose[:, 4] == m)[0]
+            quat = array_quaternion_pose[pose_indices[0], :4]
+            rotm = self.quat_to_rot_matrix(quat)
+            pointsR = np.dot(points_stl, rotm.T)
+            pointsR[:, 2] = -pointsR[:, 2]
+            rotated_points_by_pose.append(pointsR)
+
+        all_rotated_points = np.vstack(rotated_points_by_pose)
+        x_min, x_max = np.min(all_rotated_points[:, 0]), np.max(all_rotated_points[:, 0])
+        y_min, y_max = np.min(all_rotated_points[:, 1]), np.max(all_rotated_points[:, 1])
+        z_min, z_max = np.min(all_rotated_points[:, 2]), np.max(all_rotated_points[:, 2])
+
+        cols = 3
+        rows = int(np.ceil(num_poses / cols))
+        fig = plt.figure(figsize=(cols * 4, rows * 4))
+
+        for a, pointsR in enumerate(rotated_points_by_pose, start=1):
+            ax = fig.add_subplot(rows, cols, a, projection='3d')
+            ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors='k', facecolors=[0.6, 0.6, 0.6]))
+            ax.set_xlim([x_min, x_max])
+            ax.set_ylim([y_min, y_max])
+            ax.set_zlim([z_min, z_max])
+            ax.set_title(f'Pose {unique_poses[a-1]}')
+            ax.set_xlabel('X')
+            ax.set_ylabel('Y')
+            ax.set_zlabel('Z')
+
+        plt.tight_layout()
+        plt.show()
+
+    def plot_frequency_histogram(self, array_quaternion_pose):
+        """
+        Plots a histogram of the frequency of stable poses.
+
+        Parameters:
+        - array_quaternion_pose: numpy array containing quaternion pose data with classified poses.
+        """
+        total_poses = int(np.max(array_quaternion_pose[:, 4]))
+        stable_poses_frequency, bin_edges = np.histogram(array_quaternion_pose[:, 4], bins=np.arange(1, total_poses + 2))
+        
+        plt.figure()
+        plt.bar(bin_edges[:-1], stable_poses_frequency, width=1)
+        plt.xlabel('Pose')
+        plt.ylabel('Frequency')
+        plt.title('Pose Frequency Histogram')
+        plt.show()
+
+    def plot_pose_pie_chart(self, array_quaternion_pose):
+        """
+        Plots a pie chart showing the distribution of stable poses.
+
+        Parameters:
+        - array_quaternion_pose: numpy array containing quaternion pose data with classified poses.
+        """
+        total_poses = int(np.max(array_quaternion_pose[:, 4]))
+        stable_poses_frequency, _ = np.histogram(array_quaternion_pose[:, 4], bins=np.arange(1, total_poses + 2))
+
+        plt.figure(figsize=(10, 6))
+        labels = []
+        labels_pie = []
+        for m in range(1, total_poses + 1):
+            abs_str = str(stable_poses_frequency[m - 1])
+            percentage_str = str(round(stable_poses_frequency[m - 1] / (len(array_quaternion_pose) / 100), 2))
+            labels.append(f"Pose {m} (n = {abs_str})")
+            labels_pie.append(f"Pose {m} ({percentage_str}%)")
+
+        max_pose_idx = np.argmax(stable_poses_frequency)
+        explode = np.zeros(total_poses)
+        explode[max_pose_idx] = 0.1  # Highlight the most frequent pose
+
+        plt.pie(stable_poses_frequency, explode=explode, labels=labels_pie)
+        plt.title(f"Natural Resting Position - " + self.workpiece_name)
+        plt.legend(labels, loc='center left', bbox_to_anchor=(1.2, 0.5))
+        plt.show()

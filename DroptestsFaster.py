@@ -286,9 +286,9 @@ class DroptestsFaster:
 
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
-        workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_angular_velocity.txt')
-        workpiece_contact_points_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_contact_points.txt')
-        workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_matlab_quaternion.txt')
+        workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')
+        workpiece_contact_points_path = self.data_path / (self.workpiece_name + '_simulated_data_export_contact_points.txt')
+        workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')
 
         # Initialize matricies to store simulation data
         matrix_rotation_quaternion = []
@@ -353,7 +353,7 @@ class DroptestsFaster:
                     # print(f"Number of Contact Points: {len(contact_points)}")
                     
                     # Slow down the simulation to match real-time (optional)
-                    time.sleep(1 / 240.)
+                    # time.sleep(1 / 240.)
 
                     # Apply an initial velocity to the workpiece once the workpiece has made contact with the surface
                     #if len(contact_points) > 2 and apply_velocity == True:

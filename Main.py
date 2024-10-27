@@ -1,5 +1,6 @@
 from pathlib import Path
 import PoseFinder as pf
+from PoseFinder import PoseFindingMode
 import DroptestsFaster as dtf
 from STLtoOBJConverter import stl_to_obj_converter
 
@@ -92,14 +93,18 @@ pose_finder.config(
     workpiece_name=workpiece_name,
     data_path=data_path,
     workpiece_path=workpiece_path,
-    simulation_number=simulation_number
-)
+    simulation_number=simulation_number,
+    mode = PoseFindingMode.QUAT_COMPARE
+    )
 
 # Import csv data from simulations
 pose_finder.import_orientation_csv()
 
+# Master function to find and plot the poses
+pose_finder.find_poses()
+
 # Process the data to find stable poses
-pose_finder.find_poses_quat() 
+#pose_finder.find_poses_quat() 
 
 # Plot the resulting stable poses
-pose_finder.plot_poses_quat() # only got the quaternion outputs to output properly for pose finder so this only uses quaternions
+#pose_finder.plot_poses_quat() # only got the quaternion outputs to output properly for pose finder so this only uses quaternions
