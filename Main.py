@@ -31,7 +31,7 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 2
+simulation_number = 100
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -102,6 +102,9 @@ pose_finder.import_orientation_csv()
 
 # Master function to find and plot the poses
 pose_finder.find_poses()
+
+reorientation_rate = pose_finder.return_reorientation_rate()#
+print(f"Reorientation Rate: {reorientation_rate}")
 
 # Process the data to find stable poses
 #pose_finder.find_poses_quat() 

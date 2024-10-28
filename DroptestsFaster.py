@@ -346,7 +346,8 @@ class DroptestsFaster:
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
                     angular_velocity_magnitude = np.linalg.norm(angular_velocity)
-
+                    print(f"Angular Velocity Magnitude: {angular_velocity_magnitude}")
+                    
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
 
@@ -354,12 +355,6 @@ class DroptestsFaster:
                     
                     # Slow down the simulation to match real-time (optional)
                     # time.sleep(1 / 240.)
-
-                    # Apply an initial velocity to the workpiece once the workpiece has made contact with the surface
-                    #if len(contact_points) > 2 and apply_velocity == True:
-                        
-                    #    self.set_workpiece_velocity(workpiece_id, self.workpiece_feed_speed, [0,-np.cos(np.radians(self.Alpha)),np.sin(np.radians(self.Alpha))])
-                    #    apply_velocity = False
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
@@ -411,7 +406,6 @@ class DroptestsFaster:
             np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')
             np.savetxt(workpiece_contact_points_path, np.array(matrix_contact_points), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
-
 
         # Disconnect from PyBullet
         p.disconnect()
