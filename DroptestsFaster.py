@@ -5,6 +5,7 @@ import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 import trimesh as tm
+import matplotlib.pyplot as plt
 
 class DroptestsFaster:
     def __init__(self):
@@ -108,6 +109,7 @@ class DroptestsFaster:
     def is_over_location(workpiece_hitpoint, nozzle_position, impulse_error_threshold=0.1):
         # Calculate the Euclidean distance between the workpiece hitpoint and the nozzle position
         distance = workpiece_hitpoint[1] - nozzle_position[1]
+        # print(f"Distance between workpiece hitpoint and nozzle position: {distance}")
         return abs(distance) < impulse_error_threshold
 
     def drop_tests(self):
@@ -234,7 +236,7 @@ class DroptestsFaster:
 
         nozzle_force = [self.nozzle_impulse_force * nozzle_direction[0], self.nozzle_impulse_force * nozzle_direction[1], self.nozzle_impulse_force * nozzle_direction[2]]
 
-        impulse_error_threshold = 0.001  # Threshold for checking when CoG passes over the point
+        impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
 
         nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.005, rgbaColor=[1, 0, 0, 1])  # Red sphere
         
@@ -278,7 +280,7 @@ class DroptestsFaster:
         p.changeDynamics(surface_id, -1, restitution=0.05, lateralFriction=0.04, linearDamping=0.04, angularDamping=0.1)
 
         # Set dynamic properties for the workpiece mass is in kg/m³ and the density of Aqua 8K V4 Resin is 1100 kg/m³
-        p.changeDynamics(workpiece_id, -1, mass=workpiece_mass, restitution=0.8, lateralFriction=0.5, linearDamping=0.04, angularDamping=0.1)
+        p.changeDynamics(workpiece_id, -1, mass=workpiece_mass, restitution=0.8, lateralFriction=0.5, linearDamping=0.5, angularDamping=0.1)
 
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
@@ -313,6 +315,7 @@ class DroptestsFaster:
                 # Apply an initial velocity to the workpiece after resetting its position and orientation
                 p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
                 # Run the simulation
+                impule_applied = False
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
 
@@ -349,10 +352,10 @@ class DroptestsFaster:
                     # print(f"Number of Contact Points: {len(contact_points)}")
                     
                     # Slow down the simulation to match real-time (optional)
-                    time.sleep(4 / 240.)
+                    # time.sleep(1 / 240.)
 
                     # Check if CoG is over impulse location
-                    if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
+                    if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold) and not impule_applied:
                         pre_impulse_orientation = blender_orientation
                         pre_impulse_angular_velocity = angular_velocity
                         pre_impulse_contact_points = contact_points
@@ -368,6 +371,7 @@ class DroptestsFaster:
                         # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
                         print("impulse applied")
+                        impule_applied = True
                     else:
                         # Ensure no force is applied when not over the location
                         p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)

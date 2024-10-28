@@ -31,16 +31,16 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 10
+simulation_number = 1000
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 60.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-Beta = 45.0 # degrees
+Beta = 5.0 # degrees
 
-workpiece_feed_speed = 0.001 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+workpiece_feed_speed = 0.0001 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
 hitpoint_offset_parallel = 0.002 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
@@ -48,7 +48,7 @@ nozzle_offset_parallel = 0.1 # offset of the nozzle on one of the slide surfaces
 
 nozzle_offset_perpendicular = 0.02 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiece
+nozzle_impulse_force = 40.0 # impulse force applied by the nozzle to the workpiece
 
 #Create an .obj file if it does not already exist for the bullet engine
 
