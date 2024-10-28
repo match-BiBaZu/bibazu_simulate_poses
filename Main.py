@@ -31,7 +31,7 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 100
+simulation_number = 10
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -48,7 +48,7 @@ nozzle_offset_parallel = 0.1 # offset of the nozzle on one of the slide surfaces
 
 nozzle_offset_perpendicular = 0.02 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force = 5.0 # impulse force applied by the nozzle to the workpiece
+nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiece
 
 #Create an .obj file if it does not already exist for the bullet engine
 

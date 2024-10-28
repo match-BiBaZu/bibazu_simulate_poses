@@ -4,7 +4,6 @@ import pybullet_data
 import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
-import MyQuaternions as mq
 import trimesh as tm
 
 class DroptestsFaster:
@@ -187,7 +186,8 @@ class DroptestsFaster:
 
         # Find the mass of the workpiece
         workpiece_mass = workpiece_mesh.volume * 1100 # Density of Aqua 8K V4 Resin is 1100 kg/m³
-        
+        print(f"Workpiece mass: {workpiece_mass} kg")
+
         # Create the collision shape using the obj file
         # Create a convex hull collision shape for the workpiece
         workpiece_collision_id = p.createCollisionShape(
@@ -203,14 +203,10 @@ class DroptestsFaster:
 
         # Create a multi-body with the collision and visual shapes for the workpiece
         workpiece_id = p.createMultiBody(
-            baseMass=1.0,
+            baseMass=workpiece_mass,
             baseCollisionShapeIndex=workpiece_collision_id,
             baseVisualShapeIndex=workpiece_vis_shape_id,
             basePosition=workpiece_start_pos,
-        # initialise the nozzle
-        #--------------------------------------------------------------------------
-        # Determine the location of the nozzle on the surface
-
             baseOrientation=workpiece_start_orientation,
             baseInertialFramePosition=workpiece_geometric_center,
         )
@@ -346,7 +342,6 @@ class DroptestsFaster:
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
                     angular_velocity_magnitude = np.linalg.norm(angular_velocity)
-                    print(f"Angular Velocity Magnitude: {angular_velocity_magnitude}")
                     
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
@@ -354,7 +349,7 @@ class DroptestsFaster:
                     # print(f"Number of Contact Points: {len(contact_points)}")
                     
                     # Slow down the simulation to match real-time (optional)
-                    # time.sleep(1 / 240.)
+                    time.sleep(4 / 240.)
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold):
@@ -383,6 +378,7 @@ class DroptestsFaster:
                        break
    
                 print(f"Simulation {current_simulation}, Step {step}")
+                print(f"Angular Velocity at Step {step}: {angular_velocity}")
                 current_simulation+= 1
                 
                 combined_orientation = np.concatenate((bullet_orientation, pre_impulse_orientation))                            
