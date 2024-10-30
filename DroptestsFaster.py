@@ -106,14 +106,15 @@ class DroptestsFaster:
         return workpiece_start_orientation
 
     @staticmethod
-    def is_over_location(workpiece_hitpoint, nozzle_position, impulse_error_threshold=0.1):
+    def is_over_location(workpiece_hitpoint, nozzle_position):
+
+        position_error_threshold = 0.01
         # Calculate the Euclidean distance between the workpiece hitpoint and the nozzle position
         distance = workpiece_hitpoint[1] - nozzle_position[1]
         # print(f"Distance between workpiece hitpoint and nozzle position: {distance}")
-        return abs(distance) < impulse_error_threshold
+        return abs(distance) < position_error_threshold
 
     def drop_tests(self):
-        impulse_threshold = 0.1  # Define the impulse threshold for stopping
         simulation_steps = 1500 # Define the maximum number of simulation steps
         current_simulation = 1  # Initialize the simulation number
 
@@ -127,13 +128,24 @@ class DroptestsFaster:
         surface_mesh = tm.load(str(self.surface_path / (self.surface_name + '.obj')))
 
         # Find the length of the bounding box (axis-aligned) along each axis
-        axis_lengths = surface_mesh.bounding_box.extents
+        surface_lengths = surface_mesh.bounding_box.extents
 
         # Find the longest axis length from the bounding box
-        surface_slide_length = max(axis_lengths)
+        surface_slide_length = max(surface_lengths)
 
-        # Determine the end point of the sliding action that the workpiece will reach on the surface
-        surface_end_point = (surface_slide_length/2)*np.cos(np.radians(self.Alpha))
+        surface_corners = surface_mesh.bounding_box.vertices
+
+        # Extract the vertex with the lowest z value
+        slide_end_vertex = min(surface_corners, key=lambda v: v[2])
+
+        # Find the vertex that is exactly surface_slide_length away from the lowest_z_vertex
+        slide_start_vertex = np.zeros(3)
+
+        for vertex in surface_corners:
+            distance = np.linalg.norm(np.array(vertex) - np.array(slide_end_vertex))
+            if np.isclose(distance, surface_slide_length, atol=1e-5):
+                slide_start_vertex = vertex
+                break
         
         # Create a convex hull collision shape for the surface
         surface_collision_id = p.createCollisionShape(
@@ -236,8 +248,6 @@ class DroptestsFaster:
 
         nozzle_force = [self.nozzle_impulse_force * nozzle_direction[0], self.nozzle_impulse_force * nozzle_direction[1], self.nozzle_impulse_force * nozzle_direction[2]]
 
-        impulse_error_threshold = 0.1  # Threshold for checking when CoG passes over the point
-
         nozzle_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.005, rgbaColor=[1, 0, 0, 1])  # Red sphere
         
         nozzle_marker = p.createMultiBody(
@@ -287,16 +297,26 @@ class DroptestsFaster:
         workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')
         workpiece_contact_points_path = self.data_path / (self.workpiece_name + '_simulated_data_export_contact_points.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')
+        workpiece_location_path = self.data_path / (self.workpiece_name + '_simulated_data_export_location.txt')
 
         # Initialize matricies to store simulation data
         matrix_rotation_quaternion = []
         matrix_angular_velocity = []
         matrix_contact_points = []
+        matrix_location = []
+
+        pre_impulse_angular_velocity = np.ones(3) * 1000000
+        pre_impulse_orientation = np.ones(4) * 1000000
+        pre_impulse_contact_points = np.ones(2) * 1000000
+        pre_impulse_location = np.ones(3) * 1000000
+
+        angular_velocity_buffer = np.ones(3) * 1000000
 
         # Clear the text files before starting (open in 'w' mode)
         with open(workpiece_angular_velocity_path, 'w') as ang_vel_file, \
             open(workpiece_contact_points_path, 'w') as contact_points_file, \
-            open(workpiece_quaternion_path, 'w') as quat_file:
+            open(workpiece_quaternion_path, 'w') as quat_file, \
+            open(workpiece_location_path, 'w') as location_file :
             pass  # Just opening the files in 'w' mode will clear them
 
         # Open workpiece data file once
@@ -315,7 +335,8 @@ class DroptestsFaster:
                 # Apply an initial velocity to the workpiece after resetting its position and orientation
                 p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
                 # Run the simulation
-                impule_applied = False
+                impulse_applied = False
+
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
 
@@ -332,7 +353,10 @@ class DroptestsFaster:
                     negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
 
                     # Use PyBullet's multiplyTransforms to multiply quaternions
-                    _, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], orientation)
+                    negated_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], orientation)
+
+                    # Apply slide length to offset the workpiece position to show how far the workpiece slid down the surface
+                    workpiece_position = [negated_position[0], negated_position[1] - surface_slide_length / 2, negated_position[2]]
 
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
@@ -344,25 +368,30 @@ class DroptestsFaster:
                     
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
-                    angular_velocity_magnitude = np.linalg.norm(angular_velocity)
+
+                    # Smooth the angular velocity using a moving average
+                    angular_velocity_buffer = np.vstack((angular_velocity_buffer, angular_velocity))
+
+                    if angular_velocity_buffer.shape[0] > 10:
+                        angular_velocity_buffer = angular_velocity_buffer[-10:]
+
+                    angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
                     
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
-
-                    # print(f"Number of Contact Points: {len(contact_points)}")
                     
                     # Slow down the simulation to match real-time (optional)
-                    # time.sleep(1 / 240.)
+                    #time.sleep(1 / 240.)
 
                     # Check if CoG is over impulse location
-                    if self.is_over_location(workpiece_hitpoint, nozzle_position , impulse_error_threshold) and not impule_applied:
+                    if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
                         pre_impulse_orientation = blender_orientation
-                        pre_impulse_angular_velocity = angular_velocity
-                        pre_impulse_contact_points = contact_points
+                        pre_impulse_angular_velocity = angular_velocity_smoothed
+                        pre_impulse_location = negated_position
 
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                         workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
-                        workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                        workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {negated_position[0]}, {negated_position[1]}, {negated_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                         workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
@@ -371,32 +400,35 @@ class DroptestsFaster:
                         # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
                         print("impulse applied")
-                        impule_applied = True
+                        impulse_applied = True
                     else:
                         # Ensure no force is applied when not over the location
                         p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
 
-                    # Stop the simulation when the workpiece reaches the end of the slide
-                    if position[1] < -surface_end_point:
-                       print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
-                       break
+                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
+                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
+                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                        break
    
                 print(f"Simulation {current_simulation}, Step {step}")
-                print(f"Angular Velocity at Step {step}: {angular_velocity}")
+                print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
+                print(f"Number of contact points at step {step}: {len(contact_points)}")
                 current_simulation+= 1
                 
                 combined_orientation = np.concatenate((bullet_orientation, pre_impulse_orientation))                            
-                combined_angular_velocity = np.concatenate((angular_velocity, pre_impulse_angular_velocity))
+                combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
                 combined_contact_points = [len(contact_points),len(pre_impulse_contact_points)]
+                combined_location = np.concatenate((position, pre_impulse_location))
 
                 matrix_rotation_quaternion.append(combined_orientation)
                 matrix_angular_velocity.append(combined_angular_velocity)
                 matrix_contact_points.append(combined_contact_points)
+                matrix_location.append(combined_location)
 
                 # Write iteration data to workpiece_data
                 workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
-                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {position[0]}, {position[1]}, {position[2]}\n")
+                workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                 workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                 workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
@@ -406,6 +438,7 @@ class DroptestsFaster:
             np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')
             np.savetxt(workpiece_contact_points_path, np.array(matrix_contact_points), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
+            np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
 
         # Disconnect from PyBullet
         p.disconnect()

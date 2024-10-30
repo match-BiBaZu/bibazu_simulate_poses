@@ -27,8 +27,8 @@ class PoseFinder:
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
         # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_quaternion_blend = np.zeros((self.simulation_number, 6))
-        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 6))
+        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
+        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 5))
 
         # These are the arrays that are used to store the angular velocities determined by the simulation
         self.array_angular_velocity = np.zeros((self.simulation_number, 3))
@@ -41,11 +41,9 @@ class PoseFinder:
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
-        # Initialize counters for each category
-        self.successful_reoriented_stable = 0.0
-        self.successful_reoriented_unstable = 0.0
-        self.unsuccessful_reoriented_stable = 0.0
-        self.unsuccessful_reoriented_unstable = 0.0
+        # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
+        self.simulation_outcomes = 0
+        self.sliding_distance_array = 0 
 
         
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
@@ -65,8 +63,8 @@ class PoseFinder:
                 raise ValueError("Invalid mode. Must be of type PoseFindingMode.")
         
         # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_quaternion_blend = np.zeros((self.simulation_number, 6))
-        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 6))
+        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
+        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 5))
 
         # These are the arrays that are used to store the angular velocities determined by the simulation
         self.array_angular_velocity = np.zeros((self.simulation_number, 3))
@@ -75,6 +73,7 @@ class PoseFinder:
         # These are the arrays that are used to store the number of contact points determined by the simulation
         self.array_contact_points = np.zeros((self.simulation_number, 1))
         self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1))    
+
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
@@ -127,7 +126,7 @@ class PoseFinder:
         elif self.mode == PoseFindingMode.QUAT_COMPARE:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
-            concatenated_quaternions = self._check_if_pose_is_stable(concatenated_quaternions, 
+            concatenated_quaternions = self._find_simulation_outcomes(concatenated_quaternions, 
                                             np.vstack((self.array_contact_points,self.array_pre_impulse_contact_points)), 
                                             np.vstack((self.array_angular_velocity,self.array_pre_impulse_angular_velocity)))
 
@@ -138,9 +137,8 @@ class PoseFinder:
             self.plot_frequency_histogram(self.array_quaternion_blend)
             self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend)
 
-            self.find_reorientation_rate()
-            self.plot_reorientation_pie_chart()
-                    
+            #self.find_reorientation_rate()
+            #self.plot_reorientation_pie_chart()
         else:
             raise ValueError("Invalid mode specified.")
     
@@ -331,16 +329,15 @@ class PoseFinder:
     @staticmethod
     def _normalize_quat(quat):
         return quat / np.linalg.norm(quat)
-    
+
     # Check if the pose is stable based on the angular velocity and contact points
-    @staticmethod
-    def _check_if_pose_is_stable(array_quaternion_pose, contact_points, angular_velocity):
-        for i in range(len(array_quaternion_pose)):
-            if ((contact_points[i] < 2)and (np.linalg.norm(angular_velocity[i]) > 10.0)):
-                array_quaternion_pose[i, 5] = 1  # Set the pose to unstable
-            else:
-                array_quaternion_pose[i, 5] = 0  # Set the pose to stable
-        return array_quaternion_pose
+    def _find_simulation_outcomes(self):
+        for i in self.simulation_number:
+            if self.array_quaternion_blend[i, 4] == self.array_pre_impulse_quaternion_blend[i, 4] \
+                and max(abs(self.array_angular_velocity[i,:])) < 0.1 \
+                and self.array_location[i, z] > 0:
+                    self.simulation_outcomes[i] = 0
+        
     
     # This function plots the mesh of the workpiece in different orientations
     def plot_mesh_visualization(self, array_quaternion_pose):

@@ -31,12 +31,12 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 1000
+simulation_number = 100
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-Alpha = 60.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
 Beta = 5.0 # degrees
 
