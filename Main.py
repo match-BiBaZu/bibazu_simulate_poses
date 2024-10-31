@@ -3,6 +3,7 @@ import PoseFinder as pf
 from PoseFinder import PoseFindingMode
 import DroptestsFaster as dtf
 from STLtoOBJConverter import stl_to_obj_converter
+import numpy as np
 
 #--------------------------------------------------------------------------
 # 1. Set up the paths to the stl files and the simulation data
@@ -103,8 +104,14 @@ pose_finder.import_orientation_csv()
 # Master function to find and plot the poses
 pose_finder.find_poses()
 
-reorientation_rate = pose_finder.return_reorientation_rate()#
-print(f"Reorientation Rate: {reorientation_rate}")
+simulation_outcomes = pose_finder.get_simulation_outcomes()
+sliding_distances = pose_finder.get_sliding_distance()
+
+# Calculate the average of sliding distances
+average_sliding_distance = np.mean(sliding_distances)
+print('Sliding distances:', average_sliding_distance)
+
+#--------------------------------------------------------------------------
 
 # Process the data to find stable poses
 #pose_finder.find_poses_quat() 

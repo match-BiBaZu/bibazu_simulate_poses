@@ -38,12 +38,16 @@ class PoseFinder:
         self.array_contact_points = np.zeros((self.simulation_number, 1))
         self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1))    
 
+        # THese are the arrays that are used to store the location of the workpiece
+        self.array_location = np.zeros((self.simulation_number, 3))
+        self.array_pre_impulse_location = np.zeros((self.simulation_number, 3))
+
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
         # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
-        self.simulation_outcomes = 0
-        self.sliding_distance_array = 0 
+        self.simulation_outcomes = np.zeros(self.simulation_number)
+        self.sliding_distance_array = np.zeros(self.simulation_number)
 
         
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
@@ -72,10 +76,18 @@ class PoseFinder:
 
         # These are the arrays that are used to store the number of contact points determined by the simulation
         self.array_contact_points = np.zeros((self.simulation_number, 1))
-        self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1))    
+        self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1)) 
+
+        # THese are the arrays that are used to store the location of the workpiece
+        self.array_location = np.zeros((self.simulation_number, 3))
+        self.array_pre_impulse_location = np.zeros((self.simulation_number, 3))
 
         # This is the loaded STL file of the workpiece
         self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
+
+        # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
+        self.simulation_outcomes = np.zeros(self.simulation_number)
+        self.sliding_distance_array = np.zeros(self.simulation_number)
     
     def import_orientation_csv(self):
         # Import data from the simulation CSV files into arrays
@@ -93,8 +105,8 @@ class PoseFinder:
         angular_velocity_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')), dtype=float)
         
         if angular_velocity_data.shape[1] == 6:
-            self.array_angular_velocity = angular_velocity_data[:, :3]
-            self.array_pre_impulse_angular_velocity = angular_velocity_data[:, 3:]
+            self.array_angular_velocity = angular_velocity_data[:, :3].reshape(-1, 3)
+            self.array_pre_impulse_angular_velocity = angular_velocity_data[:, 3:].reshape(-1, 3)
         else:
             raise ValueError("Unexpected number of columns in the angular velocity input file.")
 
@@ -106,6 +118,17 @@ class PoseFinder:
             self.array_pre_impulse_contact_points = contact_points_data[:, 1].reshape(-1, 1)
         else:
             raise ValueError("Unexpected number of columns in the contact points input file.")
+        
+        # Import location data
+
+        location_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_location.txt')), dtype=float)
+
+        if location_data.shape[1] == 6:
+            self.array_location = location_data[:, :3].reshape(-1, 3)
+            self.array_pre_impulse_location = location_data[:, 3:].reshape(-1, 3)
+        else:    
+            raise ValueError("Unexpected number of columns in the location input file.")
+        
     
     def find_poses(self):
 
@@ -126,49 +149,57 @@ class PoseFinder:
         elif self.mode == PoseFindingMode.QUAT_COMPARE:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
-            concatenated_quaternions = self._find_simulation_outcomes(concatenated_quaternions, 
-                                            np.vstack((self.array_contact_points,self.array_pre_impulse_contact_points)), 
-                                            np.vstack((self.array_angular_velocity,self.array_pre_impulse_angular_velocity)))
 
-            self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number, :6]
-            self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:, :6]
+            self._find_simulation_outcomes()
+            self._find_sliding_distance()
+
+            # Filter only the columns from concatenated_quaternions that are successfully reoriented
+            concatenated_quaternions = concatenated_quaternions[self.simulation_outcomes == 0]
+
+            self.sliding_distance_array = self.array_location[self.simulation_outcomes == 0, 1]
+
+            self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number, :5]
+            self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:, 5:]
 
             self.plot_mesh_visualization(concatenated_quaternions)
             self.plot_frequency_histogram(self.array_quaternion_blend)
             self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend)
 
-            #self.find_reorientation_rate()
-            #self.plot_reorientation_pie_chart()
+            self.plot_simulation_outcome_pie_chart()
+
+
         else:
             raise ValueError("Invalid mode specified.")
     
-    # Iterate through the arrays to classify each row as a successful or unsuccessful reorientation based on the pose change and stability
-    def find_reorientation_rate(self):
-    
-        for i in range(self.simulation_number):
-            pose_blend = self.array_quaternion_blend[i, 4]
-            pose_pre_impulse = self.array_pre_impulse_quaternion_blend[i, 4]
-            stable_blend = self.array_quaternion_blend[i, 5]
-            stable_pre_impulse = self.array_pre_impulse_quaternion_blend[i, 5]
+     # Returns the reorientation rate
+    def get_simulation_outcomes(self):
+        return self.simulation_outcomes
 
-            if pose_blend != pose_pre_impulse:
-                if stable_blend == 0 and stable_pre_impulse == 0:
-                    self.successful_reoriented_stable += 1
+    # Returns the sliding distance
+    def get_sliding_distance(self):
+        return self.sliding_distance_array
+    
+    # Check if the reorientation occured and classify the outcome
+    def _find_simulation_outcomes(self):
+        for i in range(len(self.array_location)):
+            if self.array_location[i, 2] > 0:
+                if max(abs(self.array_angular_velocity[i,:])) < 0.1:
+                    if self.array_pre_impulse_quaternion_blend[i, 4] != self.array_quaternion_blend[i, 4]:
+                        self.simulation_outcomes[i] = 0 # Successful reorientation
+                    else:
+                        self.simulation_outcomes[i] = 1 # Unsuccessful reorientation
                 else:
-                    self.successful_reoriented_unstable += 1
+                    self.simulation_outcomes[i] = 2 # Workpiece is not stable
             else:
-                if stable_blend == 0 and stable_pre_impulse == 0:
-                    self.unsuccessful_reoriented_stable += 1
-                else:
-                    self.unsuccessful_reoriented_unstable += 1
-    
-    # Returns the reorientation rate as a numpy array
-    def return_reorientation_rate(self):
+                self.simulation_outcomes[i] = 3 # Workpiece fell off the slide
 
-        return np.array([self.successful_reoriented_stable, 
-                         self.unsuccessful_reoriented_stable, 
-                         self.successful_reoriented_unstable, 
-                         self.unsuccessful_reoriented_unstable]) / self.simulation_number
+    # This function calculates the sliding distance of sucessful reorientations
+    def _find_sliding_distance(self):
+        for i in self.simulation_number:
+            if self.simulation_outcomes[i] == 0:
+                self.sliding_distance_array[i] = self.array_location[i, 1]
+            else:
+                self.sliding_distance_array[i] = 0
 
     # This function classifies pose of workpieces according to their orientation determined in quaternion space, then converts to euler
     # (original function from Torge, only works for workpieces landing on a plane)
@@ -329,15 +360,6 @@ class PoseFinder:
     @staticmethod
     def _normalize_quat(quat):
         return quat / np.linalg.norm(quat)
-
-    # Check if the pose is stable based on the angular velocity and contact points
-    def _find_simulation_outcomes(self):
-        for i in self.simulation_number:
-            if self.array_quaternion_blend[i, 4] == self.array_pre_impulse_quaternion_blend[i, 4] \
-                and max(abs(self.array_angular_velocity[i,:])) < 0.1 \
-                and self.array_location[i, z] > 0:
-                    self.simulation_outcomes[i] = 0
-        
     
     # This function plots the mesh of the workpiece in different orientations
     def plot_mesh_visualization(self, array_quaternion_pose):
@@ -361,7 +383,7 @@ class PoseFinder:
                 # Get quaternion for the current pose
                 pose_indices = np.where(array_quaternion_pose[:, 4] == m)[0]
                 quat = array_quaternion_pose[pose_indices[0], :4]
-                unstable_pose = array_quaternion_pose[pose_indices[0], 5]
+
                 # Compute rotation matrix once for the pose
                 rotm = self._quat_to_rot_matrix(quat)
 
@@ -373,7 +395,7 @@ class PoseFinder:
                 
                 # Store the rotated points for later use
                 rotated_points_by_pose.append(pointsR)
-                unstable_poses.append(unstable_pose)
+
             # Step 2: Compute global axis limits across all poses
             all_rotated_points = np.vstack(rotated_points_by_pose)  # Stack all rotated points into one array
             x_min, x_max = np.min(all_rotated_points[:, 0]), np.max(all_rotated_points[:, 0])
@@ -392,10 +414,7 @@ class PoseFinder:
                 ax = fig.add_subplot(rows, cols, a, projection='3d')
                 
                 # Plot STL mesh using precomputed points and stored rotated points
-                if unstable_poses[a-1] == 1:
-                    ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors= 'r', facecolors=[0.6, 0.6, 0.6]))
-                else:
-                    ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors= 'k', facecolors=[0.6, 0.6, 0.6]))
+                ax.add_collection3d(Poly3DCollection(pointsR[cList_stl], edgecolors= 'k', facecolors=[0.6, 0.6, 0.6]))
 
                 # Set consistent global axis limits
                 ax.set_xlim([x_min, x_max])
@@ -414,20 +433,10 @@ class PoseFinder:
             plt.show()
     
     # This function plots a histogram of the frequency of the determined poses in the simulation and colours the bars based on stability
-    @staticmethod
     def plot_frequency_histogram(array_quaternion_pose):
         total_poses = int(np.max(array_quaternion_pose[:, 4]))
         stable_poses_frequency, bin_edges = np.histogram(array_quaternion_pose[:, 4], bins=np.arange(1, total_poses + 2))
         bar_colors = []  # An empty list
-
-        # Determine the color of each bar based on the stability of the pose
-        if np.all(array_quaternion_pose[:, 5] == 1):
-            bar_colors = ['red'] * total_poses
-        elif np.all(array_quaternion_pose[:, 5] == 0):
-            bar_colors = ['blue'] * total_poses
-        else:
-            bar_colors = ['red' if np.any(array_quaternion_pose[np.where(array_quaternion_pose[:, 4] == i), 5] == 1) 
-                                else 'blue' for i in range(1, total_poses + 1)]
 
         plt.figure()
         plt.bar(bin_edges[:-1], stable_poses_frequency, width=1, color=bar_colors)
@@ -461,15 +470,17 @@ class PoseFinder:
         plt.show()
     
     # This function plots a pie chart of the re-orientation rate of the workpiece, the only sucessful outcome is coloured green
-    def plot_reorientation_pie_chart(self):
-        self.find_reorientation_rate()
+    def plot_simulation_outcome_pie_chart(self):
+        # Calculate the counts for each outcome
+        successful_reoriented = np.sum(self.simulation_outcomes == 0)
+        unsuccessful_reoriented = np.sum(self.simulation_outcomes == 1)
+        not_stable = np.sum(self.simulation_outcomes == 2)
+        fell_off_slide = np.sum(self.simulation_outcomes == 3)
 
         # Data for the pie chart
-        sizes = [self.successful_reoriented_stable, self.unsuccessful_reoriented_stable, 
-             self.successful_reoriented_unstable, self.unsuccessful_reoriented_unstable]
-        labels = ['Successfully Re-oriented (Stable)', 'Unsuccessfully Re-oriented (Stable)', 
-              'Successfully Re-oriented (Unstable)', 'Unsuccessfully Re-oriented (Unstable)']
-        colors = ['#99ff99', '#ff6666', '#ff3333', '#ff0000']  # Green for success red for failure
+        sizes = [successful_reoriented, unsuccessful_reoriented, not_stable, fell_off_slide]
+        labels = ['Successfully Re-oriented', 'Unsuccessfully Re-oriented', 'Not Stable', 'Fell Off Slide']
+        colors = ['#99ff99', '#ff6666', '#ff3333', '#ff0000']  # Green for success, shades of red for failures
 
         # Filter out categories with 0 results using list comprehension
         filtered_data = [(size, label, color) for size, label, color in zip(sizes, labels, colors) if size > 0]
@@ -480,6 +491,6 @@ class PoseFinder:
         # Plot the pie chart
         plt.figure(figsize=(10, 6))
         plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-        plt.title('Determining Re-orientation Rate')
+        plt.title('Simulation Outcomes')
         plt.legend(labels, loc='center left', bbox_to_anchor=(1.2, 0.5))
         plt.show()
