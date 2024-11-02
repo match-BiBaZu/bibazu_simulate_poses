@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
+import csv
 
 class PoseFindingMode(Enum):
     TORGE = 'torge'
@@ -150,20 +151,22 @@ class PoseFinder:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
 
+            self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number]
+            self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:]
+
+            # Call the function to write the modified quaternions to CSV files
+            self.write_modified_quaternions_to_csv()
+
             self._find_simulation_outcomes()
             self._find_sliding_distance()
 
-            # Filter only the columns from concatenated_quaternions that are successfully reoriented
-            concatenated_quaternions = concatenated_quaternions[self.simulation_outcomes == 0]
+            # Create a boolean index for successful outcomes with the same length as concatenated_quaternions
+            successful_indices = self.simulation_outcomes == 0
 
-            self.sliding_distance_array = self.array_location[self.simulation_outcomes == 0, 1]
-
-            self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number, :5]
-            self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:, 5:]
-
-            self.plot_mesh_visualization(concatenated_quaternions)
-            self.plot_frequency_histogram(self.array_quaternion_blend)
-            self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend)
+            if np.any(successful_indices):
+                self.plot_mesh_visualization(self.array_quaternion_blend[successful_indices, :5])
+                self.plot_frequency_histogram(self.array_quaternion_blend[successful_indices, 4])
+                self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend[successful_indices, 4])
 
             self.plot_simulation_outcome_pie_chart()
 
@@ -176,18 +179,38 @@ class PoseFinder:
         return self.simulation_outcomes
 
     # Returns the sliding distance
-    def get_sliding_distance(self):
-        return self.sliding_distance_array
+    def get_sliding_distance_average(self):
+        if np.sum(self.simulation_outcomes == 0) == 0:
+            return 0
+        return np.mean(self.sliding_distance_array[self.simulation_outcomes == 0])
     
+    # Write the modified quaternion arrays to CSV files
+    def write_modified_quaternions_to_csv(self):
+        # Define file paths
+        quaternion_blend_file = self.data_path / (self.workpiece_name + '_modified_quaternion_blend.csv')
+        pre_impulse_quaternion_blend_file = self.data_path / (self.workpiece_name + '_modified_pre_impulse_quaternion_blend.csv')
+
+        # Write array_quaternion_blend to CSV
+        with open(quaternion_blend_file, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['w', 'x', 'y', 'z', 'pose'])
+            writer.writerows(self.array_quaternion_blend)
+
+        # Write array_pre_impulse_quaternion_blend to CSV
+        with open(pre_impulse_quaternion_blend_file, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['w', 'x', 'y', 'z', 'pose'])
+            writer.writerows(self.array_pre_impulse_quaternion_blend)
+
     # Check if the reorientation occured and classify the outcome
     def _find_simulation_outcomes(self):
-        for i in range(len(self.array_location)):
-            if self.array_location[i, 2] > 0:
+        for i in range(self.array_location.shape[0]):
+            if self.array_location[i, 2] >= 0:
                 if max(abs(self.array_angular_velocity[i,:])) < 0.1:
                     if self.array_pre_impulse_quaternion_blend[i, 4] != self.array_quaternion_blend[i, 4]:
-                        self.simulation_outcomes[i] = 0 # Successful reorientation
+                        self.simulation_outcomes[i] = 0 # Successfully reoriented
                     else:
-                        self.simulation_outcomes[i] = 1 # Unsuccessful reorientation
+                        self.simulation_outcomes[i] = 1 # Not reoriented
                 else:
                     self.simulation_outcomes[i] = 2 # Workpiece is not stable
             else:
@@ -195,7 +218,7 @@ class PoseFinder:
 
     # This function calculates the sliding distance of sucessful reorientations
     def _find_sliding_distance(self):
-        for i in self.simulation_number:
+        for i in range(self.simulation_outcomes.shape[0]):
             if self.simulation_outcomes[i] == 0:
                 self.sliding_distance_array[i] = self.array_location[i, 1]
             else:
@@ -294,10 +317,10 @@ class PoseFinder:
                         if array_quaternion_pose[j, 4] == 0.0:  # If pose not classified
                             if quat_diff[0] >= np.cos((rot_diff_threshold * np.pi) / 360):  # Check the scalar component
                                 array_quaternion_pose[j, 4] = n  # Assign the same cluster label
-                                #print(n)
-                                #print(f"same pose at j {j}")
-                            #else:
-                                #print(f"different pose at j {j}")
+                                print(n)
+                                print(f"same pose at j {j}")
+                            else:
+                                print(f"different pose at j {j}")
 
                 array_quaternion_pose[i, 4] = n
                 n += 1  # Move to the next cluster label
@@ -433,13 +456,12 @@ class PoseFinder:
             plt.show()
     
     # This function plots a histogram of the frequency of the determined poses in the simulation and colours the bars based on stability
-    def plot_frequency_histogram(array_quaternion_pose):
-        total_poses = int(np.max(array_quaternion_pose[:, 4]))
-        stable_poses_frequency, bin_edges = np.histogram(array_quaternion_pose[:, 4], bins=np.arange(1, total_poses + 2))
-        bar_colors = []  # An empty list
+    def plot_frequency_histogram(self,array_quaternion_pose):
+        total_poses = int(np.max(array_quaternion_pose))
+        stable_poses_frequency, bin_edges = np.histogram(array_quaternion_pose, bins=np.arange(1, total_poses + 2))
 
         plt.figure()
-        plt.bar(bin_edges[:-1], stable_poses_frequency, width=1, color=bar_colors)
+        plt.bar(bin_edges[:-1], stable_poses_frequency, width=1, color='b', edgecolor='k', alpha=0.7)
         plt.xlabel('Pose')
         plt.ylabel('Frequency')
         plt.title('Pose Frequency Histogram')
@@ -479,7 +501,7 @@ class PoseFinder:
 
         # Data for the pie chart
         sizes = [successful_reoriented, unsuccessful_reoriented, not_stable, fell_off_slide]
-        labels = ['Successfully Re-oriented', 'Unsuccessfully Re-oriented', 'Not Stable', 'Fell Off Slide']
+        labels = ['Successfully Re-oriented', 'Not Re-oriented', 'Not Stable', 'Fell Off Slide']
         colors = ['#99ff99', '#ff6666', '#ff3333', '#ff0000']  # Green for success, shades of red for failures
 
         # Filter out categories with 0 results using list comprehension

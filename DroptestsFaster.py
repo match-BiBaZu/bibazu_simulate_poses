@@ -305,7 +305,7 @@ class DroptestsFaster:
         matrix_contact_points = []
         matrix_location = []
 
-        pre_impulse_angular_velocity = np.ones(3) * 1000000
+        pre_impulse_angular_velocity = np.zeros(3)
         pre_impulse_orientation = np.ones(4) * 1000000
         pre_impulse_contact_points = np.ones(2) * 1000000
         pre_impulse_location = np.ones(3) * 1000000
@@ -353,11 +353,11 @@ class DroptestsFaster:
                     negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
 
                     # Use PyBullet's multiplyTransforms to multiply quaternions
-                    negated_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, [0, 0, 0], orientation)
+                    adjusted_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, position, orientation)
 
                     # Apply slide length to offset the workpiece position to show how far the workpiece slid down the surface
-                    workpiece_position = [negated_position[0], negated_position[1] - surface_slide_length / 2, negated_position[2]]
-
+                    workpiece_position = [adjusted_position[0], adjusted_position[1] - surface_slide_length / 2, adjusted_position[2]]
+                    print(f"Workpiece position: {workpiece_position}")
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
 
@@ -381,17 +381,18 @@ class DroptestsFaster:
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
                     
                     # Slow down the simulation to match real-time (optional)
-                    #time.sleep(1 / 240.)
+                    time.sleep(1 / 240.)
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
                         pre_impulse_orientation = blender_orientation
                         pre_impulse_angular_velocity = angular_velocity_smoothed
-                        pre_impulse_location = negated_position
+                        pre_impulse_location = adjusted_position
+                        pre_impulse_contact_points = contact_points
 
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                         workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
-                        workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {negated_position[0]}, {negated_position[1]}, {negated_position[2]}\n")
+                        workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                         workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
@@ -418,7 +419,7 @@ class DroptestsFaster:
                 combined_orientation = np.concatenate((bullet_orientation, pre_impulse_orientation))                            
                 combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
                 combined_contact_points = [len(contact_points),len(pre_impulse_contact_points)]
-                combined_location = np.concatenate((position, pre_impulse_location))
+                combined_location = np.concatenate((workpiece_position, pre_impulse_location))
 
                 matrix_rotation_quaternion.append(combined_orientation)
                 matrix_angular_velocity.append(combined_angular_velocity)
