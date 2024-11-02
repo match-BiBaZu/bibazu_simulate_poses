@@ -39,15 +39,15 @@ simulation_number = 10
 
 Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-Beta = 5.0 # degrees
+Beta = 10.0 # degrees
 
 workpiece_feed_speed = 1 # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
 hitpoint_offset_parallel = 0.002 # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
-nozzle_offset_parallel = 0.2 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
+nozzle_offset_parallel = 1 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular = 0.02 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular = 0.01 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
 nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiece
 
@@ -106,6 +106,10 @@ pose_finder.find_poses()
 
 simulation_outcomes = pose_finder.get_simulation_outcomes()
 sliding_distance = pose_finder.get_sliding_distance_average()
+
+# Write the orientations to a csv file
+pose_finder.write_modified_quaternions_to_csv()
+
 print('Sliding distances:', sliding_distance)
 
 #--------------------------------------------------------------------------

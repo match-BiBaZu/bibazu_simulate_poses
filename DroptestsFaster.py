@@ -310,7 +310,8 @@ class DroptestsFaster:
         pre_impulse_contact_points = np.ones(2) * 1000000
         pre_impulse_location = np.ones(3) * 1000000
 
-        angular_velocity_buffer = np.ones(3) * 1000000
+        angular_velocity_buffer = np.zeros(3)
+        quaternion_buffer = np.zeros(4)
 
         # Clear the text files before starting (open in 'w' mode)
         with open(workpiece_angular_velocity_path, 'w') as ang_vel_file, \
@@ -357,10 +358,13 @@ class DroptestsFaster:
 
                     # Apply slide length to offset the workpiece position to show how far the workpiece slid down the surface
                     workpiece_position = [adjusted_position[0], adjusted_position[1] - surface_slide_length / 2, adjusted_position[2]]
-                    print(f"Workpiece position: {workpiece_position}")
+                    #print(f"Workpiece bullet orientation: {bullet_orientation}")
+
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
 
+                    print(f"Workpiece blender orientation: {blender_orientation}")
+                    
                     euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
 
                     #Change euler orientation to match blender model outputs
@@ -371,21 +375,28 @@ class DroptestsFaster:
 
                     # Smooth the angular velocity using a moving average
                     angular_velocity_buffer = np.vstack((angular_velocity_buffer, angular_velocity))
+                    quaternion_buffer = np.vstack((quaternion_buffer, blender_orientation))
 
                     if angular_velocity_buffer.shape[0] > 10:
                         angular_velocity_buffer = angular_velocity_buffer[-10:]
+                        quaternion_buffer = quaternion_buffer[-10:]
 
                     angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
+                    print(f"Angular Velocity Smoothed: {angular_velocity_smoothed}")
+                    orientation_smoothed = np.mean(quaternion_buffer, axis=0)
+                    print(f"Orientation Smoothed: {orientation_smoothed}")
                     
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
                     
                     # Slow down the simulation to match real-time (optional)
-                    time.sleep(1 / 240.)
+                    time.sleep(10 / 240.)
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
-                        pre_impulse_orientation = blender_orientation
+                        pre_impulse_orientation = orientation_smoothed
+                        print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
+
                         pre_impulse_angular_velocity = angular_velocity_smoothed
                         pre_impulse_location = adjusted_position
                         pre_impulse_contact_points = contact_points
@@ -396,7 +407,7 @@ class DroptestsFaster:
                         workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                         workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
-                        workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+                        workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
                         
                         # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
@@ -416,7 +427,7 @@ class DroptestsFaster:
                 print(f"Number of contact points at step {step}: {len(contact_points)}")
                 current_simulation+= 1
                 
-                combined_orientation = np.concatenate((bullet_orientation, pre_impulse_orientation))                            
+                combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
                 combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
                 combined_contact_points = [len(contact_points),len(pre_impulse_contact_points)]
                 combined_location = np.concatenate((workpiece_position, pre_impulse_location))
@@ -433,7 +444,7 @@ class DroptestsFaster:
                 workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                 workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
-                workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {bullet_orientation[0]}, {bullet_orientation[1]}, {bullet_orientation[2]}, {bullet_orientation[3]}\n")
+                workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
             
             # Save the simulation data
             np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')

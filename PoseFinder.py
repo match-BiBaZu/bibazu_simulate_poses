@@ -164,12 +164,11 @@ class PoseFinder:
             successful_indices = self.simulation_outcomes == 0
 
             if np.any(successful_indices):
-                self.plot_mesh_visualization(self.array_quaternion_blend[successful_indices, :5])
+                self.plot_mesh_visualization(concatenated_quaternions)
                 self.plot_frequency_histogram(self.array_quaternion_blend[successful_indices, 4])
                 self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend[successful_indices, 4])
 
             self.plot_simulation_outcome_pie_chart()
-
 
         else:
             raise ValueError("Invalid mode specified.")
@@ -182,7 +181,7 @@ class PoseFinder:
     def get_sliding_distance_average(self):
         if np.sum(self.simulation_outcomes == 0) == 0:
             return 0
-        return np.mean(self.sliding_distance_array[self.simulation_outcomes == 0])
+        return np.mean(abs(self.sliding_distance_array[self.simulation_outcomes == 0]))
     
     # Write the modified quaternion arrays to CSV files
     def write_modified_quaternions_to_csv(self):
@@ -317,10 +316,10 @@ class PoseFinder:
                         if array_quaternion_pose[j, 4] == 0.0:  # If pose not classified
                             if quat_diff[0] >= np.cos((rot_diff_threshold * np.pi) / 360):  # Check the scalar component
                                 array_quaternion_pose[j, 4] = n  # Assign the same cluster label
-                                print(n)
-                                print(f"same pose at j {j}")
-                            else:
-                                print(f"different pose at j {j}")
+                                #print(n)
+                                #print(f"same pose at j {j}")
+                            #else:
+                                #print(f"different pose at j {j}")
 
                 array_quaternion_pose[i, 4] = n
                 n += 1  # Move to the next cluster label
