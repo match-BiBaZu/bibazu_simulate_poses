@@ -37,7 +37,7 @@ simulation_number = 10
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-Alpha = 20.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+Alpha = 45.0 # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
 Beta = 10.0 # degrees
 
@@ -47,7 +47,7 @@ hitpoint_offset_parallel = 0.002 # offset of the force application hitpoint on t
 
 nozzle_offset_parallel = 1 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular = 0.01 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular = 0.5 # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
 nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiece
 

@@ -211,7 +211,7 @@ class PoseFinder:
                     else:
                         self.simulation_outcomes[i] = 1 # Not reoriented
                 else:
-                    self.simulation_outcomes[i] = 2 # Workpiece is not stable
+                    self.simulation_outcomes[i] = 2 # Workpiece is not settled
             else:
                 self.simulation_outcomes[i] = 3 # Workpiece fell off the slide
 
@@ -500,7 +500,7 @@ class PoseFinder:
 
         # Data for the pie chart
         sizes = [successful_reoriented, unsuccessful_reoriented, not_stable, fell_off_slide]
-        labels = ['Successfully Re-oriented', 'Not Re-oriented', 'Not Stable', 'Fell Off Slide']
+        labels = ['Successfully Re-oriented', 'Unsuccessfully Re-oriented', 'Not Settled', 'Fell Off Slide']
         colors = ['#99ff99', '#ff6666', '#ff3333', '#ff0000']  # Green for success, shades of red for failures
 
         # Filter out categories with 0 results using list comprehension

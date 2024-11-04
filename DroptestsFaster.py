@@ -184,7 +184,7 @@ class DroptestsFaster:
         #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
         # Define the local starting position of the workpiece relative to the surface
-        local_workpiece_start_pos = [self.nozzle_offset_perpendicular, (surface_slide_length / 2 - 0.02), 0.05 ]
+        local_workpiece_start_pos = [0.03, (surface_slide_length / 2 - 0.03), 0.03 ]
 
         # Apply the surface rotation to the local starting position
         workpiece_start_pos, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_workpiece_start_pos, [0, 0, 0, 1] )
@@ -230,7 +230,7 @@ class DroptestsFaster:
         # Determine the location of the nozzle on the surface
 
         # Define the local position of the nozzle relative to the surface
-        local_nozzle_position = [self.nozzle_offset_perpendicular,(surface_slide_length - self.nozzle_offset_parallel) / 2,0]
+        local_nozzle_position = [self.nozzle_offset_perpendicular,(surface_slide_length/ 2- self.nozzle_offset_parallel),0]
 
         # Apply the surface rotation to the local nozzle position
         nozzle_position, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_nozzle_position, [0, 0, 0, 1])
