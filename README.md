@@ -5,8 +5,8 @@ A Blender-based simulation tool designed to model and visualize workpieces being
 
 Features:
 + Simulates the dynamic behavior of various workpieces as they drop onto different surfaces.
-+ Visualizes and analyzes how workpieces interact with flat surfaces based on physical properties.
-+ Supports customizable configurations, allowing users to modify workpieces and surface parameters. __NOT YET WORKING__
++ Visualizes and analyzes how workpieces interact with flat and tilted surfaces based on physical properties.
++ Supports customizable configurations, allowing users to modify workpieces and surface parameters.
 
 Installation Instructions:
 __1. Install Required Software:__
