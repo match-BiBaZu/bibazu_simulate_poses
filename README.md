@@ -58,8 +58,8 @@ Option 2: Running via Command Line (Background Mode) __NOT YET WORKING__
 __4. Docker:__
 
 ```
-sudo docker build -t BiBaZuDocker .
+sudo docker build -t bibazu-docker .
 ```
 ```
-sudo docker run -it BiBaZuDocker
+sudo docker run -it bibazu-docker
 ```
