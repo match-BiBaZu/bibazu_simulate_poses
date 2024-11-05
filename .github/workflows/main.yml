@@ -19,4 +19,4 @@ jobs:
       - name: Set up Docker container
         run: |
           docker pull mirgus/python-ubuntu24-test:latest
-          docker run --rm -v "${{ github.workspace }}:/app" mirgus/python-ubuntu24-test:latest /bin/bash -c "cd /app && python3 -m unittest discover"
+          docker run --rm -v "${{ github.workspace }}:/app" mirgus/python-ubuntu24-test:latest /bin/bash -c "cd /app && python3 -m unittest discover -s tests"
