@@ -21,4 +21,8 @@ jobs:
           docker pull mirgus/python-ubuntu24-test:latest
           docker run --rm -v "${{ github.workspace }}:/app" mirgus/python-ubuntu24-test:latest /bin/bash -c "
             cd /app &&
+            echo 'Listing contents of /app:' &&
+            ls -l /app &&
+            echo 'Listing contents of /app/venv/bin:' &&
+            ls -l /app/venv/bin &&
             /app/venv/bin/python3 -m unittest discover -s tests"
