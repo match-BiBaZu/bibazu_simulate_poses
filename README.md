@@ -55,3 +55,7 @@ Option 2: Running via Command Line (Background Mode) __NOT YET WORKING__
 
       blender -b --python simulate_workpieces.py
 
+__4. Docker:__
+
+sudo docker build -t BiBaZuDocker .
+sudo docker run -it pBiBaZuDocker
