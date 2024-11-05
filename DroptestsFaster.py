@@ -132,20 +132,6 @@ class DroptestsFaster:
 
         # Find the longest axis length from the bounding box
         surface_slide_length = max(surface_lengths)
-
-        surface_corners = surface_mesh.bounding_box.vertices
-
-        # Extract the vertex with the lowest z value
-        slide_end_vertex = min(surface_corners, key=lambda v: v[2])
-
-        # Find the vertex that is exactly surface_slide_length away from the lowest_z_vertex
-        slide_start_vertex = np.zeros(3)
-
-        for vertex in surface_corners:
-            distance = np.linalg.norm(np.array(vertex) - np.array(slide_end_vertex))
-            if np.isclose(distance, surface_slide_length, atol=1e-5):
-                slide_start_vertex = vertex
-                break
         
         # Create a convex hull collision shape for the surface
         surface_collision_id = p.createCollisionShape(
@@ -354,16 +340,10 @@ class DroptestsFaster:
                     negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
 
                     # Use PyBullet's multiplyTransforms to multiply quaternions
-                    adjusted_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, position, orientation)
-
-                    # Apply slide length to offset the workpiece position to show how far the workpiece slid down the surface
-                    workpiece_position = [adjusted_position[0], adjusted_position[1] - surface_slide_length / 2, adjusted_position[2]]
-                    #print(f"Workpiece bullet orientation: {bullet_orientation}")
+                    workpiece_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, position, orientation)
 
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
-
-                    print(f"Workpiece blender orientation: {blender_orientation}")
                     
                     euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
 
@@ -382,15 +362,15 @@ class DroptestsFaster:
                         quaternion_buffer = quaternion_buffer[-10:]
 
                     angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
-                    print(f"Angular Velocity Smoothed: {angular_velocity_smoothed}")
+                    #print(f"Angular Velocity Smoothed: {angular_velocity_smoothed}")
                     orientation_smoothed = np.mean(quaternion_buffer, axis=0)
-                    print(f"Orientation Smoothed: {orientation_smoothed}")
+                    #print(f"Orientation Smoothed: {orientation_smoothed}")
                     
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
                     
                     # Slow down the simulation to match real-time (optional)
-                    time.sleep(10 / 240.)
+                    #time.sleep(10 / 240.)
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
@@ -398,7 +378,7 @@ class DroptestsFaster:
                         print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
 
                         pre_impulse_angular_velocity = angular_velocity_smoothed
-                        pre_impulse_location = adjusted_position
+                        pre_impulse_location = workpiece_position
                         pre_impulse_contact_points = contact_points
 
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
@@ -406,8 +386,8 @@ class DroptestsFaster:
                         workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                         workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
-                        workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
-                        workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
+                        workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity_smoothed[0]}, {angular_velocity_smoothed[1]}, {angular_velocity_smoothed[2]}\n")                           
+                        workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orientation_smoothed[0]}, {orientation_smoothed[1]}, {orientation_smoothed[2]}, {orientation_smoothed[3]}\n")
                         
                         # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)

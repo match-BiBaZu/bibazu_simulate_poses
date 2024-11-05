@@ -11,6 +11,7 @@ class PoseFindingMode(Enum):
     TORGE = 'torge'
     QUAT = 'quaternion'
     QUAT_COMPARE = 'quat_compare'
+    FIND_OUTCOMES = 'find_outcomes'
 
 
 class PoseFinder:
@@ -170,12 +171,21 @@ class PoseFinder:
 
             self.plot_simulation_outcome_pie_chart()
 
+        elif self.mode == PoseFindingMode.FIND_OUTCOMES:
+            self._find_simulation_outcomes()
+            self._find_sliding_distance()
+            self.plot_simulation_outcome_pie_chart()
+
         else:
             raise ValueError("Invalid mode specified.")
     
      # Returns the reorientation rate
     def get_simulation_outcomes(self):
         return self.simulation_outcomes
+        
+    def get_simulation_outcome_frequency(self):
+            unique, counts = np.unique(self.simulation_outcomes, return_counts=True)
+            return dict(zip(unique, counts))
 
     # Returns the sliding distance
     def get_sliding_distance_average(self):
@@ -206,20 +216,23 @@ class PoseFinder:
         for i in range(self.array_location.shape[0]):
             if self.array_location[i, 2] >= 0:
                 if max(abs(self.array_angular_velocity[i,:])) < 0.1:
-                    if self.array_pre_impulse_quaternion_blend[i, 4] != self.array_quaternion_blend[i, 4]:
-                        self.simulation_outcomes[i] = 0 # Successfully reoriented
+                    if self._is_different_pose(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4], threshold=45):
+                        if self._is_different_pose_x(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4], threshold=45):
+                            self.simulation_outcomes[i] = 0 # Successfully reoriented
+                        else:
+                            self.simulation_outcomes[i] = 1 # Unsuccessfully reoriented
                     else:
-                        self.simulation_outcomes[i] = 1 # Not reoriented
+                        self.simulation_outcomes[i] = 2 # Not reoriented
                 else:
-                    self.simulation_outcomes[i] = 2 # Workpiece is not settled
+                    self.simulation_outcomes[i] = 3 # Workpiece is not settled
             else:
-                self.simulation_outcomes[i] = 3 # Workpiece fell off the slide
+                self.simulation_outcomes[i] = 4 # Workpiece fell off the slide
 
     # This function calculates the sliding distance of sucessful reorientations
     def _find_sliding_distance(self):
         for i in range(self.simulation_outcomes.shape[0]):
             if self.simulation_outcomes[i] == 0:
-                self.sliding_distance_array[i] = self.array_location[i, 1]
+                self.sliding_distance_array[i] = self.array_location[i, 1] - self.array_pre_impulse_location[i, 1]
             else:
                 self.sliding_distance_array[i] = 0
 
@@ -302,19 +315,8 @@ class PoseFinder:
                     if array_quaternion_pose[j, 4] == 0:  # Check if this quaternion has not yet been assigned a cluster
                         quat_j = array_quaternion_pose[j, :4]  # Extract the quaternion
 
-                        # Normalize the quaternions
-                        quat_i = self._normalize_quat(quat_i)
-                        quat_j = self._normalize_quat(quat_j)
-
-                        # Calculate the distance between the two quaternions
-                        quat_diff = np.abs(self._quat_multiply(quat_i, self._quat_conjugate(quat_j)))
-                        #print(quat_diff)
-
-                        # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
-                        # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
-                        # the cosine of the threshold
                         if array_quaternion_pose[j, 4] == 0.0:  # If pose not classified
-                            if quat_diff[0] >= np.cos((rot_diff_threshold * np.pi) / 360):  # Check the scalar component
+                            if not(self._is_different_pose(quat_i, quat_j, rot_diff_threshold)):
                                 array_quaternion_pose[j, 4] = n  # Assign the same cluster label
                                 #print(n)
                                 #print(f"same pose at j {j}")
@@ -324,6 +326,35 @@ class PoseFinder:
                 array_quaternion_pose[i, 4] = n
                 n += 1  # Move to the next cluster label
         return array_quaternion_pose
+    
+    # helper function to determine if the pose is different
+    def _is_different_pose(self, quat1, quat2, threshold=45):
+        # Normalize the quaternions
+        quat1 = self._normalize_quat(quat1)
+        quat2 = self._normalize_quat(quat2)
+
+        # Calculate the distance between the two quaternions
+        quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+
+        # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
+        # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
+        # the cosine of the threshold
+        return quat_diff[0] < np.cos((threshold * np.pi) / 360) # check the scalar component of the quaternion
+        #return np.abs(quat_diff[1]) > np.sin((threshold * np.pi) / 360)
+    
+    # helper function to determine if the pose is different around the x axis only
+    def _is_different_pose_x(self, quat1, quat2, threshold=45):
+        # Normalize the quaternions
+        quat1 = self._normalize_quat(quat1)
+        quat2 = self._normalize_quat(quat2)
+
+        # Calculate the distance between the two quaternions
+        quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+
+        # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
+        # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
+        # the cosine of the threshold
+        return np.abs(quat_diff[1]) > np.sin((threshold * np.pi) / 360)
 
     # helper function to convert euler to rotational matricies
     @staticmethod
@@ -495,13 +526,14 @@ class PoseFinder:
         # Calculate the counts for each outcome
         successful_reoriented = np.sum(self.simulation_outcomes == 0)
         unsuccessful_reoriented = np.sum(self.simulation_outcomes == 1)
-        not_stable = np.sum(self.simulation_outcomes == 2)
-        fell_off_slide = np.sum(self.simulation_outcomes == 3)
+        not_reoriented = np.sum(self.simulation_outcomes == 2)
+        not_stable = np.sum(self.simulation_outcomes == 3)
+        fell_off_slide = np.sum(self.simulation_outcomes == 4)
 
         # Data for the pie chart
-        sizes = [successful_reoriented, unsuccessful_reoriented, not_stable, fell_off_slide]
-        labels = ['Successfully Re-oriented', 'Unsuccessfully Re-oriented', 'Not Settled', 'Fell Off Slide']
-        colors = ['#99ff99', '#ff6666', '#ff3333', '#ff0000']  # Green for success, shades of red for failures
+        sizes = [successful_reoriented, unsuccessful_reoriented, not_reoriented, not_stable, fell_off_slide]
+        labels = ['Successfully Re-oriented', 'Unsuccessfully Re-oriented', 'Not Reoriented', 'Not Settled', 'Fell Off Slide']
+        colors = ['#99ff99', '#ff9999', '#ff6666', '#ff3333', '#ff0000']  # Green for success, shades of red for failures
 
         # Filter out categories with 0 results using list comprehension
         filtered_data = [(size, label, color) for size, label, color in zip(sizes, labels, colors) if size > 0]
