@@ -1,0 +1,6 @@
+numpy 
+numpy-stl
+matplotlib
+pybullet
+trimesh
+mathutils
