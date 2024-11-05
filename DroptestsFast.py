@@ -19,7 +19,7 @@ surface_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_po
 workpiece_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/Workpieces/' + name_obj + '.STL'
 
 # File paths for simulated data
-base_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/SimulationData/Dashas_Testing/'
+base_path = '/home/rosmatch/Dashas_fantastic_workspace/src/bibazu_simulate_poses/SimulationData/Blender_Raw_Simulations/'
 workpiece_data_path = base_path + name_obj + '_simulated_data.txt'
 workpiece_location_path = base_path + name_obj + '_simulated_data_export_matlab_location.txt'
 workpiece_rotation_path = base_path + name_obj + '_simulated_data_export_matlab_rotation.txt'

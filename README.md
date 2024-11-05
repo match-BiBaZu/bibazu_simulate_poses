@@ -58,4 +58,4 @@ Option 2: Running via Command Line (Background Mode) __NOT YET WORKING__
 __4. Docker:__
 
 sudo docker build -t BiBaZuDocker .
-sudo docker run -it pBiBaZuDocker
+sudo docker run -it BiBaZuDocker

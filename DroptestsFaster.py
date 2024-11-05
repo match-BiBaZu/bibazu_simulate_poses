@@ -45,7 +45,7 @@ class DroptestsFaster:
         #--------------------------------------------------------------------------
         
         # This is the current file path of the data stored relative to the script
-        self.data_path = Path(__file__).parent / 'SimulationData' / 'MHI_Data'
+        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
 
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -186,7 +186,6 @@ class DroptestsFaster:
 
         # Find the mass of the workpiece
         workpiece_mass = workpiece_mesh.volume * 1100 # Density of Aqua 8K V4 Resin is 1100 kg/m³
-        #print(f"Workpiece mass: {workpiece_mass} kg")
 
         # Create the collision shape using the obj file
         # Create a convex hull collision shape for the workpiece
@@ -281,19 +280,16 @@ class DroptestsFaster:
         # File paths for simulated data
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
         workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')
-        workpiece_contact_points_path = self.data_path / (self.workpiece_name + '_simulated_data_export_contact_points.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')
         workpiece_location_path = self.data_path / (self.workpiece_name + '_simulated_data_export_location.txt')
 
         # Initialize matricies to store simulation data
         matrix_rotation_quaternion = []
         matrix_angular_velocity = []
-        matrix_contact_points = []
         matrix_location = []
 
         pre_impulse_angular_velocity = np.zeros(3)
         pre_impulse_orientation = np.ones(4) * 1000000
-        pre_impulse_contact_points = np.ones(2) * 1000000
         pre_impulse_location = np.ones(3) * 1000000
 
         angular_velocity_buffer = np.zeros(3)
@@ -301,7 +297,6 @@ class DroptestsFaster:
 
         # Clear the text files before starting (open in 'w' mode)
         with open(workpiece_angular_velocity_path, 'w') as ang_vel_file, \
-            open(workpiece_contact_points_path, 'w') as contact_points_file, \
             open(workpiece_quaternion_path, 'w') as quat_file, \
             open(workpiece_location_path, 'w') as location_file :
             pass  # Just opening the files in 'w' mode will clear them
@@ -362,10 +357,8 @@ class DroptestsFaster:
                         quaternion_buffer = quaternion_buffer[-10:]
 
                     angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
-                    #print(f"Angular Velocity Smoothed: {angular_velocity_smoothed}")
                     orientation_smoothed = np.mean(quaternion_buffer, axis=0)
-                    #print(f"Orientation Smoothed: {orientation_smoothed}")
-                    
+
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
                     
@@ -379,13 +372,11 @@ class DroptestsFaster:
 
                         pre_impulse_angular_velocity = angular_velocity_smoothed
                         pre_impulse_location = workpiece_position
-                        pre_impulse_contact_points = contact_points
 
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                         workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
                         workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
-                        workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity_smoothed[0]}, {angular_velocity_smoothed[1]}, {angular_velocity_smoothed[2]}\n")                           
                         workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orientation_smoothed[0]}, {orientation_smoothed[1]}, {orientation_smoothed[2]}, {orientation_smoothed[3]}\n")
                         
@@ -402,19 +393,17 @@ class DroptestsFaster:
                         #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
                         break
    
-                # print(f"Simulation {current_simulation}, Step {step}")
-                # print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
-                # print(f"Number of contact points at step {step}: {len(contact_points)}")
+                #print(f"Simulation {current_simulation}, Step {step}")
+                #print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
+                #print(f"Number of contact points at step {step}: {len(contact_points)}")
                 current_simulation+= 1
                 
                 combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
                 combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
-                combined_contact_points = [len(contact_points),len(pre_impulse_contact_points)]
                 combined_location = np.concatenate((workpiece_position, pre_impulse_location))
 
                 matrix_rotation_quaternion.append(combined_orientation)
                 matrix_angular_velocity.append(combined_angular_velocity)
-                matrix_contact_points.append(combined_contact_points)
                 matrix_location.append(combined_location)
 
                 # Write iteration data to workpiece_data
@@ -422,13 +411,11 @@ class DroptestsFaster:
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
                 workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                 workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
-                workpiece_data.writelines(f"Simulated Number of Contact Points: {len(contact_points)}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
             
             # Save the simulation data
             np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')
-            np.savetxt(workpiece_contact_points_path, np.array(matrix_contact_points), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
             np.savetxt(workpiece_location_path, np.array(matrix_location), delimiter='\t')
 
