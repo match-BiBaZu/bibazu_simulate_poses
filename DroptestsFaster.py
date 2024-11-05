@@ -133,9 +133,10 @@ class DroptestsFaster:
         current_simulation = 1  # Initialize the simulation number
 
         # Initialize PyBullet and set up physics simulation
-        if self.mode == DroptestsFasterMode.DEBUG:
+        self.mode = "headless"  # Set the mode to "headless" for non-GUI mode
+        if self.mode == "debug":
             p.connect(p.GUI)
-        elif self.mode == DroptestsFasterMode.HEADLESS:
+        elif self.mode == "headless":
             p.connect(p.DIRECT)  # Use p.DIRECT for non-GUI mode
         #p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
