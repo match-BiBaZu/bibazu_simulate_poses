@@ -1,5 +1,4 @@
-# .github/workflows/test.yml
-name: Python Tests in Docker
+name: Test with Pre-Built Docker Container
 
 on:
   push:
@@ -14,11 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Check out the code
         uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: docker build -t bibazu-docker .
-
-      - name: Run tests in Docker container
-        run: docker run bibazu-docker python -it
+      - name: Set up Docker container
+        run: |
+          docker pull mirgus/python-ubuntu24-test:latest
+          docker run --rm -v "${{ github.workspace }}:/app" mirgus/python-ubuntu24-test:latest /bin/bash -c "cd /app && python -m unittest discover"
