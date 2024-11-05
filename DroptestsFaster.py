@@ -6,6 +6,12 @@ import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 import trimesh as tm
 import matplotlib.pyplot as plt
+from enum import Enum
+
+
+class DroptestsFasterMode(Enum):
+    DEBUG = 'debug'
+    HEADLESS = 'headless'
 
 class DroptestsFaster:
     def __init__(self):
@@ -47,6 +53,9 @@ class DroptestsFaster:
         # This is the current file path of the data stored relative to the script
         self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
 
+        # This is the current file path of the logged data stored relative to the script
+        log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
+
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
@@ -83,6 +92,11 @@ class DroptestsFaster:
             self.nozzle_offset_perpendicular = kwargs['nozzle_offset_perpendicular']
         if 'nozzle_impulse_force' in kwargs:
             self.nozzle_impulse_force = kwargs['nozzle_impulse_force']
+        if 'mode' in kwargs:
+            if isinstance(kwargs['mode'], DroptestsFasterMode):
+                self.mode = kwargs['mode']
+            else:
+                raise ValueError("Invalid mode. Must be of type DroptestsFasterMode.")
 
     # Function to set initial velocity after contact detection
     def set_workpiece_velocity(self, workpiece_id, magnitude, direction):
@@ -119,8 +133,11 @@ class DroptestsFaster:
         current_simulation = 1  # Initialize the simulation number
 
         # Initialize PyBullet and set up physics simulation
-        p.connect(p.GUI)  # Use p.DIRECT for non-GUI mode
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
+        if self.mode == DroptestsFasterMode.DEBUG:
+            p.connect(p.GUI)
+        elif self.mode == DroptestsFasterMode.HEADLESS:
+            p.connect(p.DIRECT)  # Use p.DIRECT for non-GUI mode
+        #p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
         # Initialise the surface
@@ -278,6 +295,7 @@ class DroptestsFaster:
         p.changeDynamics(workpiece_id, -1, mass=workpiece_mass, restitution=0.8, lateralFriction=0.5, linearDamping=0.5, angularDamping=0.1)
 
         # File paths for simulated data
+
         workpiece_data_path = self.data_path / (self.workpiece_name + '_simulated_data.txt')
         workpiece_angular_velocity_path = self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')
         workpiece_quaternion_path = self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')
