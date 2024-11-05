@@ -1,24 +1,24 @@
-name: Build and Launch Robot in Gazebo
+# .github/workflows/test.yml
+name: Python Tests in Docker
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
-  build:
-    runs-on: self-hosted
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Install apt dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential clang-format-10 file git python3-catkin-lint \
-            python3-catkin-tools python3-pip python3-rosdep
+  test:
+    runs-on: ubuntu-latest
 
-      - name: Install pip dependencies
-        run: pip install pre-commit
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build -t bibazu-docker .
+
+      - name: Run tests in Docker container
+        run: docker run bibazu-docker python -m unittest discover
