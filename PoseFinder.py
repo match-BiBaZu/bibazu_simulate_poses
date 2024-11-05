@@ -6,7 +6,6 @@ from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 import csv
-from datetime import datetime
 
 class PoseFindingMode(Enum):
     TORGE = 'torge'
@@ -24,7 +23,9 @@ class PoseFinder:
         self.simulation_number = 1000
         
         # This is the current file path of the input data stored relative to the script
-        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data'
+        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
+
+        self.log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
 
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -59,6 +60,8 @@ class PoseFinder:
             self.workpiece_name = kwargs['workpiece_name']
         if 'data_path' in kwargs:
             self.data_path = kwargs['data_path']
+        if 'log_path' in kwargs:
+            self.log_path = kwargs['log_path']
         if 'workpiece_path' in kwargs:
             self.workpiece_path = kwargs['workpiece_path']
         if 'simulation_number' in kwargs:
@@ -94,7 +97,7 @@ class PoseFinder:
     
     def import_temp_csv(self):
         # Import data from the simulation CSV files into arrays
-        data = np.loadtxt(str(self.data_path / 'Temporary' / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
+        data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
         
         if data.shape[1] == 4:
             self.array_quaternion_blend[:, :4] = data.reshape(-1, 4)
@@ -123,26 +126,22 @@ class PoseFinder:
         else:    
             raise ValueError("Unexpected number of columns in the location input file.")
         
-    def export_simulation_csv(self):
-        # Create a new folder with the name Logged_Simulations_Date_Time if it does not exist
-        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        log_folder = self.data_path / f'Logged_Simulations_{current_time}'
-        log_folder.mkdir(parents=True, exist_ok=True)
+    def export_raw_data_csv(self, file_name_base):
 
         # Export the orientation data to a CSV file in the same shape as the import files
-        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_quaternion.txt'), 
+        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_quaternion.txt'), 
                    np.hstack((self.array_quaternion_blend[:, :4], self.array_pre_impulse_quaternion_blend[:, :4])), delimiter=',')
         
         # Export the angular velocity data to a CSV file in the same shape as the import files
-        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt'), 
+        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_angular_velocity.txt'), 
                    np.hstack((self.array_angular_velocity, self.array_pre_impulse_angular_velocity)), delimiter=',')
         
         # Export the location data to a CSV file in the same shape as the import files
-        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_location.txt'), 
+        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_location.txt'), 
                    np.hstack((self.array_location, self.array_pre_impulse_location)), delimiter=',')
         
-
-    def find_poses(self):
+    # main function to find the poses of the workpiece
+    def find_poses_main(self):
 
         if self.mode == PoseFindingMode.TORGE:
             self.array_quaternion_blend = self._find_poses_torge(self.array_quaternion_blend)
@@ -190,9 +189,10 @@ class PoseFinder:
             raise ValueError("Invalid mode specified.")
     
      # Returns the reorientation rate
+    # Returns the different types of outcomes of the simulation as an array
     def get_simulation_outcomes(self):
         return self.simulation_outcomes
-        
+    # Returns the frequency of the different outcomes    
     def get_simulation_outcome_frequency(self):
             unique, counts = np.unique(self.simulation_outcomes, return_counts=True)
             return dict(zip(unique, counts))

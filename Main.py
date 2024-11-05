@@ -2,7 +2,8 @@ from pathlib import Path
 import PoseFinder as pf
 from PoseFinder import PoseFindingMode
 import DroptestsFaster as dtf
-from STLtoOBJConverter import stl_to_obj_converter
+from DroptestsFaster import DroptestsFasterMode
+#from STLtoOBJConverter import stl_to_obj_converter
 import numpy as np
 
 #--------------------------------------------------------------------------
@@ -13,7 +14,10 @@ import numpy as np
 script_dir = Path(__file__).parent
 
 # Get the current script's directory and then add the file path to the folders containing the position and orientation data of the stable poses recorded in the simulations
-data_path = Path(__file__).parent / 'SimulationData'/'Dashas_Testing_Bullet'#'Dashas_Testing_Blender'
+data_path = Path(__file__).parent / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Temporary'
+
+# This is the current file path of the logged data stored relative to the script
+log_path = Path(__file__).parent / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Logged_Simulations'
 
 # Get the current script's directory and then add the file path to the folders containing the workpiece stls
 workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -54,77 +58,106 @@ nozzle_impulse_force_array = np.arange(0, 5, 1) # impulse force applied by the n
 #Create an .obj file if it does not already exist for the bullet engine
 
 #if not (workpiece_path / (workpiece_name + '.obj')).exists():
-stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
+#stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
 
 #if not (surface_path / (surface_name + '.obj')).exists():
-stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
+#stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
+
+# Define the CSV file name with the workpiece name
+csv_file_name = f'{workpiece_name}_simulation_outcomes.csv'
+
+# Write the header line to the CSV file
+with open(csv_file_name, 'w') as f:
+    f.write('alpha,beta,workpiece_feed_speed,hitpoint_offset_parallel,nozzle_offset_perpendicular,nozzle_impulse_force,sliding_distance,simulation_outcomes\n')
 
 # Loop through the modifiable parameters and generate simulation data for each combination of parameters
-for alpha in alpha_array:
-    for beta in beta_array:
-        for workpiece_feed_speed in workpiece_feed_speed_array:
-            for hitpoint_offset_parallel in hitpoint_offset_parallel_array:
-                for nozzle_offset_perpendicular in nozzle_offset_perpendicular_array:
-                    for nozzle_impulse_force in nozzle_impulse_force_array:
+#for alpha in alpha_array:
+#    for beta in beta_array:
+#        for workpiece_feed_speed in workpiece_feed_speed_array:
+#            for hitpoint_offset_parallel in hitpoint_offset_parallel_array:
+#                for nozzle_offset_perpendicular in nozzle_offset_perpendicular_array:
+#                    for nozzle_impulse_force in nozzle_impulse_force_array:
 
-                        # Create an instance to generate simulation data
-                        drop_tests_simulator = dtf.DroptestsFaster()
+alpha = 5
+beta = 5
+workpiece_feed_speed = 0
+hitpoint_offset_parallel = 0
+nozzle_offset_perpendicular = 0
+nozzle_impulse_force = 0
 
-                        # Define the workpiece name and filepath locations for the drop tests simulator instance
-                        drop_tests_simulator.config(
-                            workpiece_name=workpiece_name,
-                            data_path=data_path,
-                            workpiece_path=workpiece_path,
-                            surface_path=surface_path,
-                            surface_name=surface_name,
-                            simulation_number=simulation_number,
-                            Alpha = alpha,
-                            Beta = beta,
-                            workpiece_feed_speed = workpiece_feed_speed,
-                            hitpoint_offset_parallel = hitpoint_offset_parallel,
-                            nozzle_offset_parallel = nozzle_offset_parallel,
-                            nozzle_offset_perpendicular = nozzle_offset_perpendicular,
-                            nozzle_impulse_force = nozzle_impulse_force,
-                        )
+# Create an instance to generate simulation data
+drop_tests_simulator = dtf.DroptestsFaster()
 
-                        # Generate the simulation data and write to csv files to store simulation data
-                        drop_tests_simulator.drop_tests()
+# Define the workpiece name and filepath locations for the drop tests simulator instance
+drop_tests_simulator.config(
+    workpiece_name=workpiece_name,
+    data_path=data_path,
+    workpiece_path=workpiece_path,
+    surface_path=surface_path,
+    surface_name=surface_name,
+    simulation_number=simulation_number,
+    Alpha = alpha,
+    Beta = beta,
+    workpiece_feed_speed = workpiece_feed_speed,
+    hitpoint_offset_parallel = hitpoint_offset_parallel,
+    nozzle_offset_parallel = nozzle_offset_parallel,
+    nozzle_offset_perpendicular = nozzle_offset_perpendicular,
+    nozzle_impulse_force = nozzle_impulse_force,
+    mode = DroptestsFasterMode.HEADLESS
+)
 
-                        #--------------------------------------------------------------------------
-                        # 3. Create a PoseFinder instance to process the simulation data
-                        #--------------------------------------------------------------------------
+# Generate the simulation data and write to csv files to store simulation data
+drop_tests_simulator.drop_tests()
 
-                        # Create a pose finder instance to process the simulation data
-                        pose_finder = pf.PoseFinder()
+#--------------------------------------------------------------------------
+# 3. Create a PoseFinder instance to process the simulation data
+#--------------------------------------------------------------------------
 
-                        # Define the workpiece name and filepath locations for the pose finder instance
-                        pose_finder.config(
-                            workpiece_name=workpiece_name,
-                            data_path=data_path,
-                            workpiece_path=workpiece_path,
-                            simulation_number=simulation_number,
-                            mode = PoseFindingMode.FIND_OUTCOMES_FAST
-                            )
+# Create a pose finder instance to process the simulation data
+pose_finder = pf.PoseFinder()
 
-                        # Import csv data from simulations
-                        pose_finder.import_temp_csv()
+# Define the workpiece name and filepath locations for the pose finder instance
+pose_finder.config(
+    workpiece_name=workpiece_name,
+    data_path=data_path,
+    log_path= log_path,
+    workpiece_path=workpiece_path,
+    simulation_number=simulation_number,
+    mode = PoseFindingMode.FIND_OUTCOMES_FAST
+    )
 
-                        # Master function to find and plot the poses (if desired)
-                        pose_finder.find_poses()
+# Import csv data from simulations
+pose_finder.import_temp_csv()
 
+# Master function to find and plot the poses (if desired)
+pose_finder.find_poses_main()
 
-                        simulation_outcomes = pose_finder.get_simulation_outcome_frequency()
-                        sliding_distance = pose_finder.get_sliding_distance_average()
+# Export the raw data to a log file
+log_file_name_base = (
+    'alpha' + str(alpha) + 
+    '_beta' + str(beta) + 
+    '_feed_speed' + str(workpiece_feed_speed) + 
+    '_nozzle_offset' + str(nozzle_offset_perpendicular) + 
+    '_nozzle_force' + str(nozzle_impulse_force)
+)
 
-                        # Export the raw simulation data to a csv file in a new folder
+pose_finder.export_raw_data_csv(log_file_name_base)
 
-                        # Append the input parameters and output parameters to a csv file
+simulation_outcomes = pose_finder.get_simulation_outcome_frequency()
+sliding_distance = pose_finder.get_sliding_distance_average()
 
-
-                        filename = 'SimulationData' + '/' + workpiece_name + '_SimulationData.csv'
-                        
-                        print('Sliding distances:', sliding_distance)
-                        print('Simulation outcomes:', simulation_outcomes)
+# Append the input parameters and output parameters to a csv file
+with open('simulation_outcomes.csv', 'a') as f:
+    f.write(
+        str(alpha) + ',' +
+        str(beta) + ',' +
+        str(workpiece_feed_speed) + ',' +
+        str(hitpoint_offset_parallel) + ',' +
+        str(nozzle_offset_perpendicular) + ',' +
+        str(nozzle_impulse_force) + ',' +
+        str(sliding_distance) + ',' +
+        str(simulation_outcomes) + '\n'
+    )
 
 #--------------------------------------------------------------------------
 
