@@ -4,6 +4,7 @@ from PoseFinder import PoseFindingMode
 import DroptestsFaster as dtf
 from STLtoOBJConverter import stl_to_obj_converter
 import numpy as np
+import time
 
 #--------------------------------------------------------------------------
 # 1. Set up the paths to the stl files and the simulation data
@@ -54,10 +55,13 @@ nozzle_impulse_force = 0.0 # impulse force applied by the nozzle to the workpiec
 #Create an .obj file if it does not already exist for the bullet engine
 
 #if not (workpiece_path / (workpiece_name + '.obj')).exists():
-stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
+#stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
 
 #if not (surface_path / (surface_name + '.obj')).exists():
-stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
+#stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
+
+# get current time 
+start_time = time.time()
 
 # Create an instance to generate simulation data
 drop_tests_simulator = dtf.DroptestsFaster()
@@ -78,6 +82,9 @@ drop_tests_simulator.config(
     nozzle_offset_perpendicular = nozzle_offset_perpendicular,
     nozzle_impulse_force = nozzle_impulse_force,
 )
+
+for i in range(1, 9):
+    drop_tests_simulator.drop_tests()
 
 # Generate the simulation data and write to csv files to store simulation data
 drop_tests_simulator.drop_tests()
@@ -111,6 +118,10 @@ sliding_distance = pose_finder.get_sliding_distance_average()
 pose_finder.write_modified_quaternions_to_csv()
 
 print('Sliding distances:', sliding_distance)
+
+# get current time
+end_time = time.time()
+print('Time taken:', end_time - start_time)
 
 #--------------------------------------------------------------------------
 

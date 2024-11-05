@@ -119,7 +119,7 @@ class DroptestsFaster:
         current_simulation = 1  # Initialize the simulation number
 
         # Initialize PyBullet and set up physics simulation
-        p.connect(p.GUI)  # Use p.DIRECT for non-GUI mode
+        p.connect(p.DIRECT)  # Use p.DIRECT for non-GUI mode
         p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
@@ -186,7 +186,7 @@ class DroptestsFaster:
 
         # Find the mass of the workpiece
         workpiece_mass = workpiece_mesh.volume * 1100 # Density of Aqua 8K V4 Resin is 1100 kg/m³
-        print(f"Workpiece mass: {workpiece_mass} kg")
+        #print(f"Workpiece mass: {workpiece_mass} kg")
 
         # Create the collision shape using the obj file
         # Create a convex hull collision shape for the workpiece
@@ -375,7 +375,7 @@ class DroptestsFaster:
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
                         pre_impulse_orientation = orientation_smoothed
-                        print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
+                        #print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
 
                         pre_impulse_angular_velocity = angular_velocity_smoothed
                         pre_impulse_location = workpiece_position
@@ -391,7 +391,7 @@ class DroptestsFaster:
                         
                         # Apply impulse force to the workpiece hit point
                         p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
-                        print("impulse applied")
+                        #print("impulse applied")
                         impulse_applied = True
                     else:
                         # Ensure no force is applied when not over the location
@@ -399,12 +399,12 @@ class DroptestsFaster:
 
                     # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
                     if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
-                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
                         break
    
-                print(f"Simulation {current_simulation}, Step {step}")
-                print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
-                print(f"Number of contact points at step {step}: {len(contact_points)}")
+                # print(f"Simulation {current_simulation}, Step {step}")
+                # print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
+                # print(f"Number of contact points at step {step}: {len(contact_points)}")
                 current_simulation+= 1
                 
                 combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            

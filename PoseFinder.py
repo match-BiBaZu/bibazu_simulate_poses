@@ -137,16 +137,16 @@ class PoseFinder:
         if self.mode == PoseFindingMode.TORGE:
             self.array_quaternion_blend = self._find_poses_torge(self.array_quaternion_blend)
 
-            self.plot_mesh_visualization(self.array_quaternion_blend)
-            self.plot_frequency_histogram(self.array_quaternion_blend)
-            self.plot_pose_pie_chart(self.array_quaternion_blend)
+            # self.plot_mesh_visualization(self.array_quaternion_blend)
+            # self.plot_frequency_histogram(self.array_quaternion_blend)
+            # self.plot_pose_pie_chart(self.array_quaternion_blend)
                 
         elif self.mode == PoseFindingMode.QUAT:
             self.array_quaternion_blend = self._find_poses_quat(self.array_quaternion_blend)
 
-            self.plot_mesh_visualization(self.array_quaternion_blend)
-            self.plot_frequency_histogram(self.array_quaternion_blend)
-            self.plot_pose_pie_chart(self.array_quaternion_blend)
+            # self.plot_mesh_visualization(self.array_quaternion_blend)
+            # self.plot_frequency_histogram(self.array_quaternion_blend)
+            # self.plot_pose_pie_chart(self.array_quaternion_blend)
 
         elif self.mode == PoseFindingMode.QUAT_COMPARE:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
@@ -164,17 +164,17 @@ class PoseFinder:
             # Create a boolean index for successful outcomes with the same length as concatenated_quaternions
             successful_indices = self.simulation_outcomes == 0
 
-            if np.any(successful_indices):
-                self.plot_mesh_visualization(concatenated_quaternions)
-                self.plot_frequency_histogram(self.array_quaternion_blend[successful_indices, 4])
-                self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend[successful_indices, 4])
+            # if np.any(successful_indices):
+            #     # self.plot_mesh_visualization(concatenated_quaternions)
+            #     # self.plot_frequency_histogram(self.array_quaternion_blend[successful_indices, 4])
+            #     # self.plot_frequency_histogram(self.array_pre_impulse_quaternion_blend[successful_indices, 4])
 
-            self.plot_simulation_outcome_pie_chart()
+            # # self.plot_simulation_outcome_pie_chart()
 
         elif self.mode == PoseFindingMode.FIND_OUTCOMES:
             self._find_simulation_outcomes()
             self._find_sliding_distance()
-            self.plot_simulation_outcome_pie_chart()
+            #self.plot_simulation_outcome_pie_chart()
 
         else:
             raise ValueError("Invalid mode specified.")

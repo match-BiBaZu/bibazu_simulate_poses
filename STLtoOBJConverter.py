@@ -1,4 +1,4 @@
-import bpy
+#import bpy
 from mathutils import Matrix
 
 def stl_to_obj_converter(stl_filepath, obj_filepath, scale=0.01):
