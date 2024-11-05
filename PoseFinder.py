@@ -6,12 +6,13 @@ from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 import csv
+from datetime import datetime
 
 class PoseFindingMode(Enum):
     TORGE = 'torge'
     QUAT = 'quaternion'
-    QUAT_COMPARE = 'quat_compare'
-    FIND_OUTCOMES = 'find_outcomes'
+    FIND_OUTCOMES_FULL = 'find_outcomes_full'
+    FIND_OUTCOMES_FAST = 'find_outcomes_fast'
 
 
 class PoseFinder:
@@ -22,8 +23,8 @@ class PoseFinder:
         # This is the total number of simulations - usually 1000
         self.simulation_number = 1000
         
-        # This is the current file path of the data stored relative to the script
-        self.data_path = Path(__file__).parent / 'MHI_Data'
+        # This is the current file path of the input data stored relative to the script
+        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data'
 
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -91,9 +92,9 @@ class PoseFinder:
         self.simulation_outcomes = np.zeros(self.simulation_number)
         self.sliding_distance_array = np.zeros(self.simulation_number)
     
-    def import_orientation_csv(self):
+    def import_temp_csv(self):
         # Import data from the simulation CSV files into arrays
-        data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
+        data = np.loadtxt(str(self.data_path / 'Temporary' / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
         
         if data.shape[1] == 4:
             self.array_quaternion_blend[:, :4] = data.reshape(-1, 4)
@@ -111,15 +112,6 @@ class PoseFinder:
             self.array_pre_impulse_angular_velocity = angular_velocity_data[:, 3:].reshape(-1, 3)
         else:
             raise ValueError("Unexpected number of columns in the angular velocity input file.")
-
-        # Import contact points data
-        contact_points_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_contact_points.txt')), dtype=float)
-
-        if contact_points_data.shape[1] == 2:
-            self.array_contact_points = contact_points_data[:, 0].reshape(-1, 1)
-            self.array_pre_impulse_contact_points = contact_points_data[:, 1].reshape(-1, 1)
-        else:
-            raise ValueError("Unexpected number of columns in the contact points input file.")
         
         # Import location data
 
@@ -131,7 +123,25 @@ class PoseFinder:
         else:    
             raise ValueError("Unexpected number of columns in the location input file.")
         
-    
+    def export_simulation_csv(self):
+        # Create a new folder with the name Logged_Simulations_Date_Time if it does not exist
+        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        log_folder = self.data_path / f'Logged_Simulations_{current_time}'
+        log_folder.mkdir(parents=True, exist_ok=True)
+
+        # Export the orientation data to a CSV file in the same shape as the import files
+        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_quaternion.txt'), 
+                   np.hstack((self.array_quaternion_blend[:, :4], self.array_pre_impulse_quaternion_blend[:, :4])), delimiter=',')
+        
+        # Export the angular velocity data to a CSV file in the same shape as the import files
+        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt'), 
+                   np.hstack((self.array_angular_velocity, self.array_pre_impulse_angular_velocity)), delimiter=',')
+        
+        # Export the location data to a CSV file in the same shape as the import files
+        np.savetxt(log_folder / (self.workpiece_name + '_simulated_data_export_location.txt'), 
+                   np.hstack((self.array_location, self.array_pre_impulse_location)), delimiter=',')
+        
+
     def find_poses(self):
 
         if self.mode == PoseFindingMode.TORGE:
@@ -148,7 +158,7 @@ class PoseFinder:
             self.plot_frequency_histogram(self.array_quaternion_blend)
             self.plot_pose_pie_chart(self.array_quaternion_blend)
 
-        elif self.mode == PoseFindingMode.QUAT_COMPARE:
+        elif self.mode == PoseFindingMode.FIND_OUTCOMES_FULL:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
 
@@ -171,10 +181,10 @@ class PoseFinder:
 
             self.plot_simulation_outcome_pie_chart()
 
-        elif self.mode == PoseFindingMode.FIND_OUTCOMES:
+        elif self.mode == PoseFindingMode.FIND_OUTCOMES_FAST:
+
             self._find_simulation_outcomes()
             self._find_sliding_distance()
-            self.plot_simulation_outcome_pie_chart()
 
         else:
             raise ValueError("Invalid mode specified.")
