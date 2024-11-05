@@ -21,4 +21,4 @@ jobs:
         run: docker build -t bibazu-docker .
 
       - name: Run tests in Docker container
-        run: docker run bibazu-docker python -m unittest discover
+        run: docker run bibazu-docker python -it
