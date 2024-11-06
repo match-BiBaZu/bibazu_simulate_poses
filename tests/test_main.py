@@ -1,8 +1,6 @@
 from pathlib import Path
 import PoseFinder as pf
-from PoseFinder import PoseFindingMode
 import DroptestsFaster as dtf
-from DroptestsFaster import DroptestsFasterMode
 #from STLtoOBJConverter import stl_to_obj_converter
 import numpy as np
 
@@ -36,7 +34,7 @@ workpiece_name = 'Teil_4'
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 10
+simulation_number = 100
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -103,7 +101,7 @@ drop_tests_simulator.config(
     nozzle_offset_parallel = nozzle_offset_parallel,
     nozzle_offset_perpendicular = nozzle_offset_perpendicular,
     nozzle_impulse_force = nozzle_impulse_force,
-    mode = DroptestsFasterMode.HEADLESS
+    mode = 0 
 )
 
 # Generate the simulation data and write to csv files to store simulation data
@@ -123,7 +121,7 @@ pose_finder.config(
     log_path= log_path,
     workpiece_path=workpiece_path,
     simulation_number=simulation_number,
-    mode = PoseFindingMode.FIND_OUTCOMES_FAST
+    mode = 3
     )
 
 # Import csv data from simulations
@@ -147,7 +145,7 @@ simulation_outcomes = pose_finder.get_simulation_outcome_frequency()
 sliding_distance = pose_finder.get_sliding_distance_average()
 
 # Append the input parameters and output parameters to a csv file
-with open('simulation_outcomes.csv', 'a') as f:
+with open(csv_file_name, 'a') as f:
     f.write(
         str(alpha) + ',' +
         str(beta) + ',' +

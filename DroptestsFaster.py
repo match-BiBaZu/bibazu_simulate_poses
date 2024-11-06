@@ -1,17 +1,10 @@
 from pathlib import Path
 import pybullet as p
-import pybullet_data
 import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 import trimesh as tm
-import matplotlib.pyplot as plt
-from enum import Enum
-
-
-class DroptestsFasterMode(Enum):
-    DEBUG = 'debug'
-    HEADLESS = 'headless'
+#import matplotlib.pyplot as plt
 
 class DroptestsFaster:
     def __init__(self):
@@ -93,10 +86,10 @@ class DroptestsFaster:
         if 'nozzle_impulse_force' in kwargs:
             self.nozzle_impulse_force = kwargs['nozzle_impulse_force']
         if 'mode' in kwargs:
-            if isinstance(kwargs['mode'], DroptestsFasterMode):
+            if kwargs['mode'] <= 1:
                 self.mode = kwargs['mode']
             else:
-                raise ValueError("Invalid mode. Must be of type DroptestsFasterMode.")
+                raise ValueError("Invalid mode. Mode must be 0 or 1.")
 
     # Function to set initial velocity after contact detection
     def set_workpiece_velocity(self, workpiece_id, magnitude, direction):
@@ -133,12 +126,11 @@ class DroptestsFaster:
         current_simulation = 1  # Initialize the simulation number
 
         # Initialize PyBullet and set up physics simulation
-        self.mode = "headless"  # Set the mode to "headless" for non-GUI mode
-        if self.mode == "debug":
+        if self.mode == 0 :
             p.connect(p.GUI)
-        elif self.mode == "headless":
+        elif self.mode == 1 :
             p.connect(p.DIRECT)  # Use p.DIRECT for non-GUI mode
-        #p.setAdditionalSearchPath(pybullet_data.getDataPath())  # PyBullet's internal data path
+
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
         # Initialise the surface
@@ -315,9 +307,9 @@ class DroptestsFaster:
         quaternion_buffer = np.zeros(4)
 
         # Clear the text files before starting (open in 'w' mode)
-        with open(workpiece_angular_velocity_path, 'w') as ang_vel_file, \
-            open(workpiece_quaternion_path, 'w') as quat_file, \
-            open(workpiece_location_path, 'w') as location_file :
+        with open(workpiece_angular_velocity_path, 'w'), \
+            open(workpiece_quaternion_path, 'w'), \
+            open(workpiece_location_path, 'w'):
             pass  # Just opening the files in 'w' mode will clear them
 
         # Open workpiece data file once
@@ -359,11 +351,6 @@ class DroptestsFaster:
                     #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
                     blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
                     
-                    euler_orientation = p.getEulerFromQuaternion(bullet_orientation)
-
-                    #Change euler orientation to match blender model outputs
-                    euler_orientation =[np.degrees(euler_orientation[0])-90, np.degrees(euler_orientation[1]), np.degrees(euler_orientation[2])]
-                    
                     # Get linear and angular velocity to detect stopping condition
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
 
@@ -395,7 +382,6 @@ class DroptestsFaster:
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                         workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
                         workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
-                        workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity_smoothed[0]}, {angular_velocity_smoothed[1]}, {angular_velocity_smoothed[2]}\n")                           
                         workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orientation_smoothed[0]}, {orientation_smoothed[1]}, {orientation_smoothed[2]}, {orientation_smoothed[3]}\n")
                         
@@ -429,7 +415,6 @@ class DroptestsFaster:
                 workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
                 workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
-                workpiece_data.writelines(f"Simulated Rotation Euler (XYZ) [°]: {euler_orientation[0]}, {euler_orientation[1]}, {euler_orientation[2]}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
             

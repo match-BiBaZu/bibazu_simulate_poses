@@ -7,13 +7,6 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 import csv
 
-class PoseFindingMode(Enum):
-    TORGE = 'torge'
-    QUAT = 'quaternion'
-    FIND_OUTCOMES_FULL = 'find_outcomes_full'
-    FIND_OUTCOMES_FAST = 'find_outcomes_fast'
-
-
 class PoseFinder:
     def __init__(self): #default values
         # This is the current name of the workpiece
@@ -67,10 +60,10 @@ class PoseFinder:
         if 'simulation_number' in kwargs:
             self.simulation_number = kwargs['simulation_number']
         if 'mode' in kwargs:
-            if isinstance(kwargs['mode'], PoseFindingMode):
+            if kwargs['mode'] <= 3:
                 self.mode = kwargs['mode']
             else:
-                raise ValueError("Invalid mode. Must be of type PoseFindingMode.")
+                raise ValueError("Invalid mode. Mode must be 0, 1, 2 or 3.")
         
         # These are the arrays that are used to store the stable orientations determined by the simulations
         self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
@@ -143,21 +136,21 @@ class PoseFinder:
     # main function to find the poses of the workpiece
     def find_poses_main(self):
 
-        if self.mode == PoseFindingMode.TORGE:
+        if self.mode == 0:
             self.array_quaternion_blend = self._find_poses_torge(self.array_quaternion_blend)
 
             self.plot_mesh_visualization(self.array_quaternion_blend)
             self.plot_frequency_histogram(self.array_quaternion_blend)
             self.plot_pose_pie_chart(self.array_quaternion_blend)
                 
-        elif self.mode == PoseFindingMode.QUAT:
+        elif self.mode == 1:
             self.array_quaternion_blend = self._find_poses_quat(self.array_quaternion_blend)
 
             self.plot_mesh_visualization(self.array_quaternion_blend)
             self.plot_frequency_histogram(self.array_quaternion_blend)
             self.plot_pose_pie_chart(self.array_quaternion_blend)
 
-        elif self.mode == PoseFindingMode.FIND_OUTCOMES_FULL:
+        elif self.mode == 2:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
 
@@ -180,7 +173,7 @@ class PoseFinder:
 
             self.plot_simulation_outcome_pie_chart()
 
-        elif self.mode == PoseFindingMode.FIND_OUTCOMES_FAST:
+        elif self.mode == 3:
 
             self._find_simulation_outcomes()
             self._find_sliding_distance()
@@ -192,10 +185,16 @@ class PoseFinder:
     # Returns the different types of outcomes of the simulation as an array
     def get_simulation_outcomes(self):
         return self.simulation_outcomes
+    
     # Returns the frequency of the different outcomes    
     def get_simulation_outcome_frequency(self):
-            unique, counts = np.unique(self.simulation_outcomes, return_counts=True)
-            return dict(zip(unique, counts))
+            simulation_frequency = np.zeros(5)
+            simulation_frequency[0] = np.sum(self.simulation_outcomes == 0)
+            simulation_frequency[1] = np.sum(self.simulation_outcomes == 1)
+            simulation_frequency[2] = np.sum(self.simulation_outcomes == 2)
+            simulation_frequency[3] = np.sum(self.simulation_outcomes == 3)
+            simulation_frequency[4] = np.sum(self.simulation_outcomes == 4)
+            return simulation_frequency
 
     # Returns the sliding distance
     def get_sliding_distance_average(self):
