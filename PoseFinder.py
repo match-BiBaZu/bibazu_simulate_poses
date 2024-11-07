@@ -13,8 +13,26 @@ class PoseFinder:
         self.workpiece_name = 'Teil_1'
 
         # This is the total number of simulations - usually 1000
-        self.simulation_number = 1000
+        self.simulation_number = 1001
         
+        # This is the current file path of the input data stored relative to the script
+        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
+
+        self.log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
+
+        # This is the current file path of the workpiece stls relative to the script
+        self.workpiece_path =  Path(__file__).parent / 'Workpieces'
+
+        # These are the arrays that are used to store the stable orientations determined by the simulations
+        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
+        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 5))
+
+        # These are the arrays that are used to store the angular velocities determined by the simulation
+        self.array_angular_velocity = np.zeros((self.simulation_number, 3))
+        self.array_pre_impulse_angular_velocity = np.zeros((self.simulation_number, 3))
+
+        # These are the arrays that are used to store the number of contact points determined by the simulation
+        self.array_contact_points = np.zeros((self.simulation_number, 1))
         # This is the current file path of the input data stored relative to the script
         self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
 
@@ -103,6 +121,7 @@ class PoseFinder:
         # Import angular velocity data
         angular_velocity_data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_angular_velocity.txt')), dtype=float)
         
+                
         if angular_velocity_data.shape[1] == 6:
             self.array_angular_velocity = angular_velocity_data[:, :3].reshape(-1, 3)
             self.array_pre_impulse_angular_velocity = angular_velocity_data[:, 3:].reshape(-1, 3)

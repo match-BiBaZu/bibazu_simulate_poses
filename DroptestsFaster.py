@@ -47,13 +47,18 @@ class DroptestsFaster:
         self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
 
         # This is the current file path of the logged data stored relative to the script
-        log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
+        self.log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
 
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
 
         # This is the current file path of the workpiece stls relative to the script
         self.surface_path =  Path(__file__).parent / 'Surfaces'
+
+        # Arrays stored per instance:
+        self.array_orientation = np.zeros((self.simulation_number, 6))
+        self.array_angular_velocity = np.zeros((self.simulation_number, 8))
+        self.array_location = np.zeros((self.simulation_number, 6))
 
 
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
@@ -90,16 +95,20 @@ class DroptestsFaster:
                 self.mode = kwargs['mode']
             else:
                 raise ValueError("Invalid mode. Mode must be 0 or 1.")
-
-    # Function to set initial velocity after contact detection
-    def set_workpiece_velocity(self, workpiece_id, magnitude, direction):
-        norm_direction = np.linalg.norm(direction)
-        if norm_direction == 0:
-            raise ValueError("Direction vector cannot be zero.")
         
-        normalized_direction = np.array(direction) / norm_direction
-        initial_velocity = normalized_direction * magnitude
-        p.resetBaseVelocity(workpiece_id, linearVelocity=initial_velocity, angularVelocity=(0,0,0))
+        # Arrays stored per instance:
+        self.array_orientation = np.zeros((self.simulation_number, 6))
+        self.array_angular_velocity = np.zeros((self.simulation_number, 8))
+        self.array_location = np.zeros((self.simulation_number, 6))
+    
+    def get_orientation_array():
+        return self.array_orientation
+
+    def get_angular_velocity_array():
+        return self.array_angular_velocity
+    
+    def get_location_array():
+        return self.array_location
 
     # This function is used to initialise the workpiece in a random orientation
     @staticmethod
@@ -305,119 +314,127 @@ class DroptestsFaster:
 
         angular_velocity_buffer = np.zeros(3)
         quaternion_buffer = np.zeros(4)
+        if self.mode == 0:
+            # Clear the text files before starting (open in 'w' mode)
+            with open(workpiece_angular_velocity_path, 'w'), \
+                open(workpiece_quaternion_path, 'w'), \
+                open(workpiece_location_path, 'w'):
+                pass  # Just opening the files in 'w' mode will clear them
 
-        # Clear the text files before starting (open in 'w' mode)
-        with open(workpiece_angular_velocity_path, 'w'), \
-            open(workpiece_quaternion_path, 'w'), \
-            open(workpiece_location_path, 'w'):
-            pass  # Just opening the files in 'w' mode will clear them
+            # Open workpiece data file once
+            with open(workpiece_data_path, 'w') as workpiece_data:
+                workpiece_data.writelines("-------------------------------------------")
+                workpiece_data.writelines('\nSimulated_Data_' + self.workpiece_name + '\n')
+                workpiece_data.writelines("-------------------------------------------\n")
 
-        # Open workpiece data file once
-        with open(workpiece_data_path, 'w') as workpiece_data:
-            workpiece_data.writelines("-------------------------------------------")
-            workpiece_data.writelines('\nSimulated_Data_' + self.workpiece_name + '\n')
-            workpiece_data.writelines("-------------------------------------------\n")
 
-            while current_simulation < self.simulation_number + 1:
+        while current_simulation < self.simulation_number + 1:
 
-                # Random workpiece rotations defined in each iteration
-                workpiece_start_orientation = self.rand_orientation()
+            # Random workpiece rotations defined in each iteration
+            workpiece_start_orientation = self.rand_orientation()
 
-                # Reset the position and orientation of the workpiece before each iteration
-                p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
-                # Apply an initial velocity to the workpiece after resetting its position and orientation
-                p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
-                # Run the simulation
-                impulse_applied = False
+            # Reset the position and orientation of the workpiece before each iteration
+            p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
+            # Apply an initial velocity to the workpiece after resetting its position and orientation
+            p.resetBaseVelocity(workpiece_id, [0, -self.workpiece_feed_speed * np.cos(np.radians(self.Alpha)), -self.workpiece_feed_speed * np.sin(np.radians(self.Alpha))], [0, 0, 0])
+            # Run the simulation
+            impulse_applied = False
 
-                for step in range(simulation_steps):  # Maximum number of simulation steps
-                    p.stepSimulation()  # Step the simulation forward
+            for step in range(simulation_steps):  # Maximum number of simulation steps
+                p.stepSimulation()  # Step the simulation forward
 
-                    #update_com_marker()
+                #update_com_marker()
 
-                    # Get the workpiece's current position and orientation
-                    position, orientation = p.getBasePositionAndOrientation(workpiece_id)
+                # Get the workpiece's current position and orientation
+                position, orientation = p.getBasePositionAndOrientation(workpiece_id)
 
-                    # update the workpiece hitpoint location
-                    workpiece_hitpoint = [position[0], position[1] + self.hitpoint_offset_parallel, position[2]]
+                # update the workpiece hitpoint location
+                workpiece_hitpoint = [position[0], position[1] + self.hitpoint_offset_parallel, position[2]]
 
-                    # Apply an orientation to negate Alpha and Beta
-                    # Create a quaternion to negate Alpha and Beta rotations
-                    negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
+                # Apply an orientation to negate Alpha and Beta
+                # Create a quaternion to negate Alpha and Beta rotations
+                negating_rotation = p.invertTransform([0, 0, 0], surface_rotation)[1] 
 
-                    # Use PyBullet's multiplyTransforms to multiply quaternions
-                    workpiece_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, position, orientation)
+                # Use PyBullet's multiplyTransforms to multiply quaternions
+                workpiece_position, bullet_orientation = p.multiplyTransforms([0, 0, 0], negating_rotation, position, orientation)
 
-                    #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
-                    blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
-                    
-                    # Get linear and angular velocity to detect stopping condition
-                    linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
+                #Change quaternion ordering from w,x,y,z to x,y,z,w to match blender model outputs
+                blender_orientation = (bullet_orientation[1], bullet_orientation[2], bullet_orientation[3], bullet_orientation[0])
+                
+                # Get linear and angular velocity to detect stopping condition
+                linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
 
-                    # Smooth the angular velocity using a moving average
-                    angular_velocity_buffer = np.vstack((angular_velocity_buffer, angular_velocity))
-                    quaternion_buffer = np.vstack((quaternion_buffer, blender_orientation))
+                # Smooth the angular velocity using a moving average
+                angular_velocity_buffer = np.vstack((angular_velocity_buffer, angular_velocity))
+                quaternion_buffer = np.vstack((quaternion_buffer, blender_orientation))
 
-                    if angular_velocity_buffer.shape[0] > 10:
-                        angular_velocity_buffer = angular_velocity_buffer[-10:]
-                        quaternion_buffer = quaternion_buffer[-10:]
+                if angular_velocity_buffer.shape[0] > 10:
+                    angular_velocity_buffer = angular_velocity_buffer[-10:]
+                    quaternion_buffer = quaternion_buffer[-10:]
 
-                    angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
-                    orientation_smoothed = np.mean(quaternion_buffer, axis=0)
+                angular_velocity_smoothed = np.mean(angular_velocity_buffer, axis=0)
+                orientation_smoothed = np.mean(quaternion_buffer, axis=0)
 
-                    # Get contact points between the plane and the workpiece
-                    contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
-                    
-                    # Slow down the simulation to match real-time (optional)
-                    #time.sleep(10 / 240.)
+                # Get contact points between the plane and the workpiece
+                contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
+                
+                # Slow down the simulation to match real-time (optional)
+                #time.sleep(10 / 240.)
 
-                    # Check if CoG is over impulse location
-                    if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
-                        pre_impulse_orientation = orientation_smoothed
-                        #print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
+                # Check if CoG is over impulse location
+                if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
+                    pre_impulse_orientation = orientation_smoothed
+                    #print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
 
-                        pre_impulse_angular_velocity = angular_velocity_smoothed
-                        pre_impulse_location = workpiece_position
+                    pre_impulse_angular_velocity = angular_velocity_smoothed
+                    pre_impulse_location = workpiece_position
 
+                    if self.mode == 0:
                         workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                         workpiece_data.writelines(f"IMPULSE APPLIED AT STEP: {step}\n")
                         workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity_smoothed[0]}, {angular_velocity_smoothed[1]}, {angular_velocity_smoothed[2]}\n")                           
                         workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orientation_smoothed[0]}, {orientation_smoothed[1]}, {orientation_smoothed[2]}, {orientation_smoothed[3]}\n")
-                        
-                        # Apply impulse force to the workpiece hit point
-                        p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
-                        #print("impulse applied")
-                        impulse_applied = True
-                    else:
-                        # Ensure no force is applied when not over the location
-                        p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
+                    
+                    # Apply impulse force to the workpiece hit point
+                    p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
+                    #print("impulse applied")
+                    impulse_applied = True
+                else:
+                    # Ensure no force is applied when not over the location
+                    p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
 
-                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
-                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
-                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
-                        break
-   
-                #print(f"Simulation {current_simulation}, Step {step}")
-                #print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
-                #print(f"Number of contact points at step {step}: {len(contact_points)}")
-                current_simulation+= 1
-                
-                combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
-                combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
-                combined_location = np.concatenate((workpiece_position, pre_impulse_location))
+                # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
+                if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
+                    #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                    break
 
-                matrix_rotation_quaternion.append(combined_orientation)
-                matrix_angular_velocity.append(combined_angular_velocity)
-                matrix_location.append(combined_location)
+            #print(f"Simulation {current_simulation}, Step {step}")
+            #print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
+            #print(f"Number of contact points at step {step}: {len(contact_points)}")
+            current_simulation+= 1
+            
+            combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
+            combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
+            combined_location = np.concatenate((workpiece_position, pre_impulse_location))
 
+            matrix_rotation_quaternion.append(combined_orientation)
+            matrix_angular_velocity.append(combined_angular_velocity)
+            matrix_location.append(combined_location)
+
+            if self.mode == 0:
                 # Write iteration data to workpiece_data
                 workpiece_data.writelines(f"\nITERATION: {current_simulation}\n")
                 workpiece_data.writelines(f"LAST STEP: {step}\n")
                 workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
-            
+        
+        self.array_orientation = np.array(matrix_rotation_quaternion)
+        self.array_angular_velocity = np.array(matrix_angular_velocity)
+        self.array_location = np.array(matrix_location)
+
+        if self.mode == 0:
             # Save the simulation data
             np.savetxt(workpiece_angular_velocity_path, np.array(matrix_angular_velocity), delimiter='\t')
             np.savetxt(workpiece_quaternion_path, np.array(matrix_rotation_quaternion), delimiter='\t')
