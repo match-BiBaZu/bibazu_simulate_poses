@@ -63,3 +63,6 @@ sudo docker build -t bibazu-docker .
 ```
 sudo docker run -it bibazu-docker
 ```
+```
+sudo docker run -v $(pwd):/external_repo -it bibazu-docker
+```
