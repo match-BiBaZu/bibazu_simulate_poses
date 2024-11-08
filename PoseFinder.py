@@ -1,4 +1,3 @@
-
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,25 +32,6 @@ class PoseFinder:
 
         # These are the arrays that are used to store the number of contact points determined by the simulation
         self.array_contact_points = np.zeros((self.simulation_number, 1))
-        # This is the current file path of the input data stored relative to the script
-        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
-
-        self.log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
-
-        # This is the current file path of the workpiece stls relative to the script
-        self.workpiece_path =  Path(__file__).parent / 'Workpieces'
-
-        # These are the arrays that are used to store the stable orientations determined by the simulations
-        self.array_quaternion_blend = np.zeros((self.simulation_number, 5))
-        self.array_pre_impulse_quaternion_blend = np.zeros((self.simulation_number, 5))
-
-        # These are the arrays that are used to store the angular velocities determined by the simulation
-        self.array_angular_velocity = np.zeros((self.simulation_number, 3))
-        self.array_pre_impulse_angular_velocity = np.zeros((self.simulation_number, 3))
-
-        # These are the arrays that are used to store the number of contact points determined by the simulation
-        self.array_contact_points = np.zeros((self.simulation_number, 1))
-        self.array_pre_impulse_contact_points = np.zeros((self.simulation_number, 1))    
 
         # THese are the arrays that are used to store the location of the workpiece
         self.array_location = np.zeros((self.simulation_number, 3))
@@ -106,6 +86,18 @@ class PoseFinder:
         self.simulation_outcomes = np.zeros(self.simulation_number)
         self.sliding_distance_array = np.zeros(self.simulation_number)
     
+    def set_orientation_array(self,quaternion_array):
+        self.array_quaternion_blend[:, :4] = quaternion_array[:, :4].reshape(-1, 4)
+        self.array_pre_impulse_quaternion_blend[:, :4] = quaternion_array[:, 4:].reshape(-1, 4)
+    
+    def set_angular_velocity_array(self,angular_velocity_array):
+        self.array_angular_velocity = angular_velocity_array[:, :3].reshape(-1, 3)
+        self.array_pre_impulse_angular_velocity = angular_velocity_array[:, 3:].reshape(-1, 3)
+
+    def set_location_array(self,location_array):
+        self.array_location = location_array[:, :3].reshape(-1, 3)
+        self.array_pre_impulse_location = location_array[:, 3:].reshape(-1, 3)
+
     def import_temp_csv(self):
         # Import data from the simulation CSV files into arrays
         data = np.loadtxt(str(self.data_path / (self.workpiece_name + '_simulated_data_export_quaternion.txt')), dtype=float)
@@ -137,20 +129,6 @@ class PoseFinder:
             self.array_pre_impulse_location = location_data[:, 3:].reshape(-1, 3)
         else:    
             raise ValueError("Unexpected number of columns in the location input file.")
-        
-    def export_raw_data_csv(self, file_name_base):
-
-        # Export the orientation data to a CSV file in the same shape as the import files
-        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_quaternion.txt'), 
-                   np.hstack((self.array_quaternion_blend[:, :4], self.array_pre_impulse_quaternion_blend[:, :4])), delimiter=',')
-        
-        # Export the angular velocity data to a CSV file in the same shape as the import files
-        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_angular_velocity.txt'), 
-                   np.hstack((self.array_angular_velocity, self.array_pre_impulse_angular_velocity)), delimiter=',')
-        
-        # Export the location data to a CSV file in the same shape as the import files
-        np.savetxt(self.log_path / (file_name_base + self.workpiece_name + '_simulated_data_export_location.txt'), 
-                   np.hstack((self.array_location, self.array_pre_impulse_location)), delimiter=',')
         
     # main function to find the poses of the workpiece
     def find_poses_main(self):
@@ -200,20 +178,10 @@ class PoseFinder:
         else:
             raise ValueError("Invalid mode specified.")
     
-     # Returns the reorientation rate
-    # Returns the different types of outcomes of the simulation as an array
-    def get_simulation_outcomes(self):
-        return self.simulation_outcomes
-    
-    # Returns the frequency of the different outcomes    
-    def get_simulation_outcome_frequency(self):
-            simulation_frequency = np.zeros(5)
-            simulation_frequency[0] = np.sum(self.simulation_outcomes == 0)
-            simulation_frequency[1] = np.sum(self.simulation_outcomes == 1)
-            simulation_frequency[2] = np.sum(self.simulation_outcomes == 2)
-            simulation_frequency[3] = np.sum(self.simulation_outcomes == 3)
-            simulation_frequency[4] = np.sum(self.simulation_outcomes == 4)
-            return simulation_frequency
+    # Returns the frequency of the different outcomes  
+    def get_simulation_outcome_frequency(self):  
+        simulation_frequency = np.array([np.sum(self.simulation_outcomes == i) for i in range(5)])
+        return simulation_frequency
 
     # Returns the sliding distance
     def get_sliding_distance_average(self):
