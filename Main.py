@@ -163,5 +163,5 @@ def run_simulation(params):
 
 # Run simulations in parallel using 32 pools
 if __name__ == "__main__":
-    with Pool(4) as pool:
+    with Pool(32) as pool:
         pool.map(run_simulation, parameter_combinations)
