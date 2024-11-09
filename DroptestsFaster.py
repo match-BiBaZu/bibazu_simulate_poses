@@ -192,7 +192,7 @@ class DroptestsFaster:
         #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
         # Define the local starting position of the workpiece relative to the surface
-        local_workpiece_start_pos = [0.1, (surface_slide_length / 2 - 0.1), 0.5 ]
+        local_workpiece_start_pos = [0.05, (surface_slide_length / 2 - 0.05), 0.05 ]
 
         # Apply the surface rotation to the local starting position
         workpiece_start_pos, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_workpiece_start_pos, [0, 0, 0, 1] )
