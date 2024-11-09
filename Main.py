@@ -5,8 +5,6 @@ import DroptestsFaster as dtf
 import numpy as np
 from multiprocessing import Pool
 import itertools
-from multiprocessing import Pool
-import itertools
 
 #--------------------------------------------------------------------------
 # 1. Set up the paths to the stl files and the simulation data
@@ -17,9 +15,6 @@ script_dir = Path(__file__).parent
 
 # Get the current script's directory and then add the file path to the folders containing the position and orientation data of the stable poses recorded in the simulations
 data_path = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Logged_Simulations'
-
-# This is the current file path of the logged data stored relative to the script
-log_path = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Logged_Simulations'
 
 # Get the current script's directory and then add the file path to the folders containing the workpiece stls
 workpiece_path =  script_dir / 'Workpieces'
@@ -32,13 +27,13 @@ surface_path =  script_dir / 'Surfaces'
 #--------------------------------------------------------------------------
 
 # These are the names of the workpieces and of their models
-workpiece_names = {'Teil_1', 'Teil_2', 'Teil_3', 'Teil_4'}
+workpiece_names = {'Teil_1','Teil_2','Teil_3','Teil_4','Teil_5'}
 
 # This is the name of the surface used
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 10
+simulation_number = 100
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -106,7 +101,7 @@ def run_simulation(params):
         nozzle_offset_parallel = nozzle_offset_parallel,
         nozzle_offset_perpendicular = nozzle_offset_perpendicular,
         nozzle_impulse_force = nozzle_impulse_force,
-        mode = 0
+        mode = 1
     )
 
     # Generate the simulation data and write to csv files to store simulation data
@@ -127,7 +122,6 @@ def run_simulation(params):
     pose_finder.config(
         workpiece_name=workpiece_name,
         data_path=data_path,
-        log_path= log_path,
         workpiece_path=workpiece_path,
         simulation_number=simulation_number,
         mode = 3

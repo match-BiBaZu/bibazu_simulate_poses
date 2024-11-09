@@ -4,6 +4,7 @@ import time
 import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 import trimesh as tm
+import matplotlib.pyplot as plt
 #import matplotlib.pyplot as plt
 
 class DroptestsFaster:
@@ -142,6 +143,8 @@ class DroptestsFaster:
 
         p.setGravity(0, 0, -9.81)  # Set gravity in the simulation
 
+        p.setPhysicsEngineParameter(contactBreakingThreshold=0.0001,numSolverIterations=50, fixedTimeStep=1/240, numSubSteps=10)
+
         # Initialise the surface
         #--------------------------------------------------------------------------
         surface_mesh = tm.load(str(self.surface_path / (self.surface_name + '.obj')))
@@ -189,7 +192,7 @@ class DroptestsFaster:
         #--------------------------------------------------------------------------
         # Calculate the starting position of the workpiece 1 meter above the surface
         # Define the local starting position of the workpiece relative to the surface
-        local_workpiece_start_pos = [0.05, (surface_slide_length / 2 - 0.05), 0.05 ]
+        local_workpiece_start_pos = [0.1, (surface_slide_length / 2 - 0.1), 0.5 ]
 
         # Apply the surface rotation to the local starting position
         workpiece_start_pos, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, local_workpiece_start_pos, [0, 0, 0, 1] )
@@ -211,6 +214,7 @@ class DroptestsFaster:
         workpiece_collision_id = p.createCollisionShape(
             shapeType=p.GEOM_MESH,          # Specify that this is a mesh
             fileName=str(self.workpiece_path / (self.workpiece_name + '.obj')),  # Path to your OBJ file
+            flags= p.GEOM_CONCAVE_INTERNAL_EDGE # Use concave hull shape for collision
         )
 
         # Create a visual shape for the workpiece (optional, for rendering in the GUI)
@@ -396,7 +400,7 @@ class DroptestsFaster:
 
                     # Get contact points between the plane and the workpiece
                     contact_points = p.getContactPoints(bodyA=surface_id, bodyB=workpiece_id)
-                    
+
                     # Slow down the simulation to match real-time (optional)
                     if self.mode == 0:
                         time.sleep(1 / 240.)
@@ -447,7 +451,8 @@ class DroptestsFaster:
                 workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
-            
+
+
             self.array_orientation = np.array(matrix_rotation_quaternion)
             self.array_angular_velocity = np.array(matrix_angular_velocity)
             self.array_location = np.array(matrix_location)

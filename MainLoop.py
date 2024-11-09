@@ -39,7 +39,7 @@ simulation_number = 10
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-alpha_array = np.arange(5, 45, 20) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+alpha_array = np.arange(45, 5, -20) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
 beta_array= np.arange(5, 45, 20) # degrees
 
@@ -65,7 +65,7 @@ location_array = np.zeros((simulation_number, 6))
 stl_to_obj_converter(str(workpiece_path / (workpiece_name + '.STL')), str(workpiece_path / (workpiece_name + '.obj')),0.001)
 
 #if not (surface_path / (surface_name + '.obj')).exists():
-#stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
+stl_to_obj_converter(str(surface_path / (surface_name + '.STL')), str(surface_path / (surface_name + '.obj')),0.05)
 
 # Define the CSV file name with the workpiece name
 csv_file_name = Path(__file__).parent / 'Simulation_Data' / 'Bullet_Raw_Data' / (workpiece_name + '_simulation_outcomes.csv')

@@ -15,9 +15,7 @@ class PoseFinder:
         self.simulation_number = 1001
         
         # This is the current file path of the input data stored relative to the script
-        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Temporary'
-
-        self.log_path = Path(__file__).parent / 'Simulation_Data' / 'Blender_Raw_Data' / 'Logged_Simulations'
+        self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Logged_Simulations'
 
         # This is the current file path of the workpiece stls relative to the script
         self.workpiece_path =  Path(__file__).parent / 'Workpieces'
@@ -51,8 +49,6 @@ class PoseFinder:
             self.workpiece_name = kwargs['workpiece_name']
         if 'data_path' in kwargs:
             self.data_path = kwargs['data_path']
-        if 'log_path' in kwargs:
-            self.log_path = kwargs['log_path']
         if 'workpiece_path' in kwargs:
             self.workpiece_path = kwargs['workpiece_path']
         if 'simulation_number' in kwargs:
