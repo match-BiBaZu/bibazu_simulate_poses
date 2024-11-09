@@ -38,19 +38,19 @@ simulation_number = 100
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-alpha_array = np.arange(5, 45, 5) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+alpha_array = np.arange(0, 90, 5) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-beta_array = np.arange(5, 45, 5) # degrees
+beta_array = np.arange(0, 90, 5) # degrees
 
-workpiece_feed_speed_array = np.arange(0, 5, 1) # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+workpiece_feed_speed_array = np.arange(0, 6, 1) # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
-hitpoint_offset_parallel_array = np.arange(0, 0.03, 0.005) # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
+hitpoint_offset_parallel_array = np.arange(0, 0.035, 0.005) # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
 nozzle_offset_parallel = 0.5 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular_array = np.arange(0, 0.06, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular_array = np.arange(0, 0.07, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force_array = np.arange(0, 5, 1) # impulse force applied by the nozzle to the workpiece to reorient it
+nozzle_impulse_force_array = np.arange(0, 11, 1) # impulse force applied by the nozzle to the workpiece to reorient it
 
 # Define the CSV file name with the workpiece name
 csv_file_name = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / ('simulation_outcomes.csv')
