@@ -163,6 +163,10 @@ cython_debug/
 #.idea/
 Simulation_Data/Bullet_Raw_Data/Logged_Simulations/*
 
+Simulation_Data/Bullet_Raw_Data/Temporary/*
+
+Simulation_Data/MHI_Data/*
+
 Simulation_Data/Bullet_Raw_Data/Logged_Simulations_1/*
 
 Simulation_Data/Bullet_Raw_Data/Logged_Simulations_2/*
