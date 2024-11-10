@@ -5,6 +5,7 @@ import random
 import numpy as np # numpy HAS to be 1.26.4 at the latest for compatibility with PyBullet
 import trimesh as tm
 import matplotlib.pyplot as plt
+import copy
 #import matplotlib.pyplot as plt
 
 class DroptestsFaster:
@@ -267,10 +268,10 @@ class DroptestsFaster:
         # ----------------------------------------------------------------------------   
 
         # Enable visualizing collision shapes
-        p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, 1)
+        #p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, 1)
 
         # Enable the GUI and other visualizations if needed
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        #p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
 
         # Draw a sphere at the adjusted COM to visualize it
         #com_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
@@ -354,7 +355,8 @@ class DroptestsFaster:
             while current_simulation < self.simulation_number + 1:
 
                 # Random workpiece rotations defined in each iteration
-                workpiece_start_orientation = self.rand_orientation()
+                #workpiece_start_orientation = self.rand_orientation()
+                workpiece_start_orientation = [0, 0, 0, 1]
 
                 # Reset the position and orientation of the workpiece before each iteration
                 p.resetBasePositionAndOrientation(workpiece_id, workpiece_start_pos, workpiece_start_orientation)
@@ -363,6 +365,7 @@ class DroptestsFaster:
                 # Run the simulation
                 impulse_applied = False
 
+                break_steps = 999
                 for step in range(simulation_steps):  # Maximum number of simulation steps
                     p.stepSimulation()  # Step the simulation forward
 
@@ -403,11 +406,20 @@ class DroptestsFaster:
 
                     # Slow down the simulation to match real-time (optional)
                     if self.mode == 0:
-                        time.sleep(1 / 240.)
+                        time.sleep(10 / 240.)
+
+
+                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
+                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0 and break_steps == 999:
+                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                        break_steps = step
+                        print(step)
+                        #print(angular_velocity_smoothed)
+
 
                     # Check if CoG is over impulse location
                     if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
-                        pre_impulse_orientation = orientation_smoothed
+                        pre_impulse_orientation = copy.deepcopy(orientation_smoothed)
                         #print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
 
                         pre_impulse_angular_velocity = angular_velocity_smoothed
@@ -427,21 +439,25 @@ class DroptestsFaster:
                         # Ensure no force is applied when not over the location
                         p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
 
-                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
-                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
-                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+
+
+                    if step == break_steps + 100:
+                        print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} without contact")
                         break
+                        
 
                 #print(f"Simulation {current_simulation}, Step {step}")
                 #print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
                 #print(f"Number of contact points at step {step}: {len(contact_points)}")
                 current_simulation+= 1
-                
+                print("pre_impulse_orientation", pre_impulse_orientation)
+                print("orientation_smoothed", orientation_smoothed)
                 combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
                 combined_angular_velocity = np.concatenate((angular_velocity_smoothed, pre_impulse_angular_velocity))
                 combined_location = np.concatenate((workpiece_position, pre_impulse_location))
 
-                matrix_rotation_quaternion.append(combined_orientation)
+                matrix_rotation_quaternion.append((combined_orientation))
+                #matrix_rotation_quaternion.append(copy.deepcopy(combined_orientation))
                 matrix_angular_velocity.append(combined_angular_velocity)
                 matrix_location.append(combined_location)
                 
@@ -452,7 +468,7 @@ class DroptestsFaster:
                 workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity[0]}, {angular_velocity[1]}, {angular_velocity[2]}\n")                           
                 workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {blender_orientation[0]}, {blender_orientation[1]}, {blender_orientation[2]}, {blender_orientation[3]}\n")
 
-
+                #print(matrix_rotation_quaternion)
             self.array_orientation = np.array(matrix_rotation_quaternion)
             self.array_angular_velocity = np.array(matrix_angular_velocity)
             self.array_location = np.array(matrix_location)

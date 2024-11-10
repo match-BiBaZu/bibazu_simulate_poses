@@ -27,30 +27,30 @@ surface_path =  script_dir / 'Surfaces'
 #--------------------------------------------------------------------------
 
 # These are the names of the workpieces and of their models
-workpiece_names = {'Teil_1','Teil_2','Teil_3','Teil_4','Teil_5'}
+workpiece_names = {'Teil_3'}
 
 # This is the name of the surface used
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 100
+simulation_number = 10
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-alpha_array = np.arange(0, 90, 5) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+alpha_array = np.arange(40, 90, 555) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-beta_array = np.arange(0, 90, 5) # degrees
+beta_array = np.arange(10, 90, 555) # degrees
 
-workpiece_feed_speed_array = np.arange(0, 6, 1) # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
+workpiece_feed_speed_array = np.arange(0, 6, 15) # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
-hitpoint_offset_parallel_array = np.arange(0, 0.035, 0.005) # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
+hitpoint_offset_parallel_array = np.arange(0, 0.035, 50.005) # offset of the force application hitpoint on the workpiece from the geometric center of the workpiece parallel to the sliding axis
 
 nozzle_offset_parallel = 0.5 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular_array = np.arange(0, 0.07, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular_array = np.arange(0, 0.07, 50.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force_array = np.arange(0, 11, 1) # impulse force applied by the nozzle to the workpiece to reorient it
+nozzle_impulse_force_array = np.arange(0, 11, 11) # impulse force applied by the nozzle to the workpiece to reorient it
 
 # Define the CSV file name with the workpiece name
 csv_file_name = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / ('simulation_outcomes.csv')
@@ -101,7 +101,7 @@ def run_simulation(params):
         nozzle_offset_parallel = nozzle_offset_parallel,
         nozzle_offset_perpendicular = nozzle_offset_perpendicular,
         nozzle_impulse_force = nozzle_impulse_force,
-        mode = 1
+        mode = 0
     )
 
     # Generate the simulation data and write to csv files to store simulation data
@@ -157,5 +157,5 @@ def run_simulation(params):
 
 # Run simulations in parallel using 32 pools
 if __name__ == "__main__":
-    with Pool(32) as pool:
+    with Pool(1) as pool:
         pool.map(run_simulation, parameter_combinations)

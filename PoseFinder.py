@@ -5,6 +5,7 @@ from stl import Mesh  # To read STL files
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from enum import Enum
 import csv
+import tf_transformations 
 
 class PoseFinder:
     def __init__(self): #default values
@@ -35,8 +36,9 @@ class PoseFinder:
         self.array_location = np.zeros((self.simulation_number, 3))
         self.array_pre_impulse_location = np.zeros((self.simulation_number, 3))
 
-        # This is the loaded STL file of the workpiece
-        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
+        # This is the loaded STL file of the workpiece at scale 10
+        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')), scale=10)
+        #self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
     
         # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
         self.simulation_outcomes = np.zeros(self.simulation_number)
@@ -76,7 +78,7 @@ class PoseFinder:
         self.array_pre_impulse_location = np.zeros((self.simulation_number, 3))
 
         # This is the loaded STL file of the workpiece
-        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')))
+        self.workpiece_stl = Mesh.from_file(str(self.workpiece_path / (self.workpiece_name + '.STL')), scale=10)
 
         # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
         self.simulation_outcomes = np.zeros(self.simulation_number)
@@ -145,7 +147,9 @@ class PoseFinder:
 
         elif self.mode == 2:
             concatenated_quaternions = np.vstack((self.array_quaternion_blend, self.array_pre_impulse_quaternion_blend))
+            print(self.array_pre_impulse_quaternion_blend)
             concatenated_quaternions = self._find_poses_quat(concatenated_quaternions)
+            
 
             self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number]
             self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:]
@@ -321,12 +325,26 @@ class PoseFinder:
     
     # helper function to determine if the pose is different
     def _is_different_pose(self, quat1, quat2, threshold=45):
+
+        print("quat1", quat1)
+        print("quat2", quat2)
+        q2_inv = self._quat_conjugate(quat2)
+        print("q2_inv",q2_inv)
+        q_diff = tf_transformations.quaternion_multiply(quat1, q2_inv)
+        q_diff = self._normalize_quat(q_diff)
+        print("q_diff",q_diff)
+        euler = tf_transformations.euler_from_quaternion([q_diff[0], q_diff[1], q_diff[2], q_diff[3]])
+        print("euler",euler)
         # Normalize the quaternions
         quat1 = self._normalize_quat(quat1)
         quat2 = self._normalize_quat(quat2)
-
+        print(quat1)
+        print(quat2)
         # Calculate the distance between the two quaternions
         quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+        print("quat_diff_Dasha", quat_diff)
+        euler_dasha = tf_transformations.euler_from_quaternion([quat_diff[1], quat_diff[2], quat_diff[3], quat_diff[0]])
+        print("euler_dasha", euler_dasha)
 
         # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
         # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
