@@ -260,7 +260,7 @@ class PoseFinder:
         # Extract the axis and angle from the quaternion
         angle = 2 * np.clip(np.arccos(quat_diff[0]), -1.0, 1.0)
         # Check if the sine term is above a threshold to avoid division by zero
-        if np.abs(sin_half_angle) > 1e-5:
+        if np.abs(np.sin(angle / 2)) > 1e-5:
             axis = quat_diff[1:] / np.sin(angle / 2)
         else:
             axis = np.array([1, 0, 0])  # Default fallback axis (e.g., x-axis)
