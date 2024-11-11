@@ -150,6 +150,8 @@ for alpha in alpha_array:
 
                         simulation_outcomes = pose_finder.get_simulation_outcome_frequency()
                         sliding_distance = pose_finder.get_sliding_distance_average()
+                        orientation_difference = pose_finder.get_orientation_difference_average()
+                        orientation_difference_axis_angle = pose_finder.get_orientation_difference_axis_angle_average()
 
                         # Append the input parameters and output parameters to a csv file
                         with open(csv_file_name, 'a') as f:

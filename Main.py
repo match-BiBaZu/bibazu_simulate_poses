@@ -33,14 +33,14 @@ workpiece_names = {'Teil_1','Teil_2','Teil_3','Teil_4','Teil_5'}
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 100
+simulation_number = 50
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
 
-alpha_array = np.arange(0, 90, 5) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
+alpha_array = np.arange(5, 90, 5) # degrees (set this to 90 when using the plane surface so that it is perpendicular to the gravity vector)
 
-beta_array = np.arange(0, 90, 5) # degrees
+beta_array = np.arange(5, 50, 5) # degrees
 
 workpiece_feed_speed_array = np.arange(0, 6, 1) # initial feed of the workpiece before it slides down the surface- mimics a conveyor belt feeder
 
@@ -48,9 +48,9 @@ hitpoint_offset_parallel_array = np.arange(0, 0.035, 0.005) # offset of the forc
 
 nozzle_offset_parallel = 0.5 # offset of the nozzle on one of the slide surfaces parallel to the sliding axis from the input end of the surface
 
-nozzle_offset_perpendicular_array = np.arange(0, 0.07, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
+nozzle_offset_perpendicular_array = np.arange(0.0, 0.07, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force_array = np.arange(0, 11, 1) # impulse force applied by the nozzle to the workpiece to reorient it
+nozzle_impulse_force_array = np.arange(4, 11, 1) # impulse force applied by the nozzle to the workpiece to reorient it
 
 # Define the CSV file name with the workpiece name
 csv_file_name = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / ('simulation_outcomes.csv')
@@ -66,7 +66,14 @@ with open(csv_file_name, 'w') as f:
         'Successfully_Re-oriented,'
         'Unsuccessfully_Re-oriented,'
         'Not_Reoriented,Not_Settled,'
-        'Fell_Off_Slide\n'
+        'Fell_Off_Slide,'
+        'orientation_diff_euler_x,'
+        'orientation_diff_euler_y,'
+        'orientation_diff_euler_z,'
+        'orientation_diff_axis_angle_w,'
+        'orientation_diff_axis_angle_x,'
+        'orientation_diff_axis_angle_y,'
+        'orientation_diff_axis_angle_z\n'
     )
 
 # Combine all parameter arrays for multiprocessing
@@ -136,6 +143,8 @@ def run_simulation(params):
 
     simulation_outcomes = pose_finder.get_simulation_outcome_frequency()
     sliding_distance = pose_finder.get_sliding_distance_average()
+    orientation_diff_euler = pose_finder.get_orientation_difference_average()
+    orientation_diff_axis_angle = pose_finder.get_orientation_difference_axis_angle_average()
 
     # Append the input parameters and output parameters to a csv file
     with open(csv_file_name, 'a') as f:
@@ -152,10 +161,17 @@ def run_simulation(params):
             f"{simulation_outcomes[1]},"
             f"{simulation_outcomes[2]},"
             f"{simulation_outcomes[3]},"
-            f"{simulation_outcomes[4]}\n"
+            f"{simulation_outcomes[4]},"
+            f"{orientation_diff_euler[0]},"
+            f"{orientation_diff_euler[1]},"
+            f"{orientation_diff_euler[2]},"
+            f"{orientation_diff_axis_angle[0]},"
+            f"{orientation_diff_axis_angle[1]},"
+            f"{orientation_diff_axis_angle[2]},"
+            f"{orientation_diff_axis_angle[3]}\n"
         )
 
 # Run simulations in parallel using 32 pools
 if __name__ == "__main__":
-    with Pool(32) as pool:
+    with Pool(1) as pool:
         pool.map(run_simulation, parameter_combinations)

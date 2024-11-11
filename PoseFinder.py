@@ -12,7 +12,7 @@ class PoseFinder:
         self.workpiece_name = 'Teil_1'
 
         # This is the total number of simulations - usually 1000
-        self.simulation_number = 1001
+        self.simulation_number = 1000
         
         # This is the current file path of the input data stored relative to the script
         self.data_path = Path(__file__).parent / 'Simulation_Data' / 'Bullet_Raw_Data' / 'Logged_Simulations'
@@ -40,7 +40,12 @@ class PoseFinder:
     
         # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
         self.simulation_outcomes = np.zeros(self.simulation_number)
+        # This is the sliding distance array
         self.sliding_distance_array = np.zeros(self.simulation_number)
+        # This is the orientation difference array in euler angles
+        self.orientation_difference_array = np.zeros((self.simulation_number, 3))
+        # This is the orientation difference array in axis angle
+        self.orientation_difference_axis_angle_array = np.zeros((self.simulation_number, 4))
 
         
     # Overrides the parameters defined in init, is done this way as you can have a flexible number of arguments
@@ -81,6 +86,8 @@ class PoseFinder:
         # Initialize the simulation outcomes array to store what is considered as success as well as the different failure modes
         self.simulation_outcomes = np.zeros(self.simulation_number)
         self.sliding_distance_array = np.zeros(self.simulation_number)
+        self.orientation_difference_array = np.zeros((self.simulation_number, 3))
+        self.orientation_difference_axis_angle_array = np.zeros((self.simulation_number, 4))
     
     def set_orientation_array(self,quaternion_array):
         self.array_quaternion_blend[:, :4] = quaternion_array[:, :4].reshape(-1, 4)
@@ -150,9 +157,6 @@ class PoseFinder:
             self.array_quaternion_blend = concatenated_quaternions[:self.simulation_number]
             self.array_pre_impulse_quaternion_blend = concatenated_quaternions[self.simulation_number:]
 
-            # Call the function to write the modified quaternions to CSV files
-            self.write_modified_quaternions_to_csv()
-
             self._find_simulation_outcomes()
             self._find_sliding_distance()
 
@@ -181,52 +185,85 @@ class PoseFinder:
 
     # Returns the sliding distance
     def get_sliding_distance_average(self):
-        if np.sum(self.simulation_outcomes == 0) == 0:
-            return 0
-        return np.mean(abs(self.sliding_distance_array[self.simulation_outcomes == 0]))
+        if np.sum(self.simulation_outcomes <= 1) == 0:
+            return np.zeros(1)
+        return np.mean(abs(self.sliding_distance_array[self.simulation_outcomes <= 1]))
+
+    def get_orientation_difference_average(self):
+        if np.sum(self.simulation_outcomes <= 1) == 0:
+            return np.zeros(3)
+        return np.mean(self.orientation_difference_array[self.simulation_outcomes <= 1], axis=0)
     
-    # Write the modified quaternion arrays to CSV files
-    def write_modified_quaternions_to_csv(self):
-        # Define file paths
-        quaternion_blend_file = self.data_path / (self.workpiece_name + '_modified_quaternion_blend.csv')
-        pre_impulse_quaternion_blend_file = self.data_path / (self.workpiece_name + '_modified_pre_impulse_quaternion_blend.csv')
-
-        # Write array_quaternion_blend to CSV
-        with open(quaternion_blend_file, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(['w', 'x', 'y', 'z', 'pose'])
-            writer.writerows(self.array_quaternion_blend)
-
-        # Write array_pre_impulse_quaternion_blend to CSV
-        with open(pre_impulse_quaternion_blend_file, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(['w', 'x', 'y', 'z', 'pose'])
-            writer.writerows(self.array_pre_impulse_quaternion_blend)
+    def get_orientation_difference_axis_angle_average(self):
+        if np.sum(self.simulation_outcomes <= 1) == 0:
+            return np.zeros(4)
+        return np.mean(self.orientation_difference_axis_angle_array[self.simulation_outcomes <= 1], axis=0)
 
     # Check if the reorientation occured and classify the outcome
     def _find_simulation_outcomes(self):
         for i in range(self.array_location.shape[0]):
+            self.orientation_difference_array[i] = self._find_orientation_difference_euler_angles(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4])
+            self.orientation_difference_axis_angle_array[i] = self._find_orientation_difference_axis_angle(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4])
             if self.array_location[i, 2] >= 0:
                 if max(abs(self.array_angular_velocity[i,:])) < 0.1:
-                    if self._is_different_pose(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4], threshold=45):
-                        if self._is_different_pose_x(self.array_quaternion_blend[i, :4], self.array_pre_impulse_quaternion_blend[i, :4], threshold=45):
+                    if self.orientation_difference_array[i, 0] > 45:
+                        if self.orientation_difference_axis_angle_array[i, 0] > 45:
                             self.simulation_outcomes[i] = 0 # Successfully reoriented
+                            #print(f"Successfully reoriented at {i}")
                         else:
                             self.simulation_outcomes[i] = 1 # Unsuccessfully reoriented
+                            #print(f"Unsuccessfully reoriented at {i}")
                     else:
                         self.simulation_outcomes[i] = 2 # Not reoriented
+                        #print(f"Not reoriented at {i}")
                 else:
                     self.simulation_outcomes[i] = 3 # Workpiece is not settled
+                    #print(f"Workpiece is not settled at {i}")
             else:
                 self.simulation_outcomes[i] = 4 # Workpiece fell off the slide
+                #print(f"Workpiece fell off the slide at {i}")
 
     # This function calculates the sliding distance of sucessful reorientations
     def _find_sliding_distance(self):
         for i in range(self.simulation_outcomes.shape[0]):
-            if self.simulation_outcomes[i] == 0:
+            if self.simulation_outcomes[i] <= 1:
                 self.sliding_distance_array[i] = self.array_location[i, 1] - self.array_pre_impulse_location[i, 1]
+                #print(f"Sliding distance at {i}: {self.sliding_distance_array[i]}")
             else:
                 self.sliding_distance_array[i] = 0
+
+    def _find_orientation_difference_euler_angles(self, quat1, quat2):
+        # Normalize the quaternions
+        quat1 = self._normalize_quat(quat1)
+        quat2 = self._normalize_quat(quat2)
+
+        # Calculate the distance between the two quaternions
+        quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+
+        rotm = self._quat_to_rot_matrix(quat_diff)
+        # Extract the individual x, y, and z rotation components from the rotation matrix
+        rotx = np.degrees(np.arctan2(rotm[2, 1], rotm[2, 2]))
+        roty = np.degrees(np.arctan2(-rotm[2, 0], np.sqrt(rotm[2, 1]**2 + rotm[2, 2]**2)))
+        rotz = np.degrees(np.arctan2(rotm[1, 0], rotm[0, 0]))
+        
+        #print(f"Rotation components: r_x = {rotx}, r_y = {roty}, r_z = {rotz}")
+        return np.array([rotx, roty, rotz])
+
+    def _find_orientation_difference_axis_angle(self, quat1, quat2):
+        # Normalize the quaternions
+        quat1 = self._normalize_quat(quat1)
+        quat2 = self._normalize_quat(quat2)
+
+        # Calculate the distance between the two quaternions
+        quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+
+        # Extract the axis and angle from the quaternion
+        angle = 2 * np.arccos(quat_diff[0])
+        axis = quat_diff[1:] / np.sin(angle / 2)
+
+        #print(f"Angle: {angle}, Axis: {axis}")
+
+        return np.array([np.degrees(angle), axis[0], axis[1], axis[2]]) 
 
     # This function classifies pose of workpieces according to their orientation determined in quaternion space, then converts to euler
     # (original function from Torge, only works for workpieces landing on a plane)
@@ -327,47 +364,25 @@ class PoseFinder:
 
         # Calculate the distance between the two quaternions
         quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+        angle_diff = 2 * np.arccos(quat_diff[0]) * 180 / np.pi
 
+        #print(f"Angle difference: {angle_diff}")
         # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
         # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
         # the cosine of the threshold
-        return quat_diff[0] < np.cos((threshold * np.pi) / 360) # check the scalar component of the quaternion
-        #return np.abs(quat_diff[1]) > np.sin((threshold * np.pi) / 360)
+        # source: https://de.mathworks.com/matlabcentral/answers/476474-how-to-find-the-angle-between-two-quaternions
+        return angle_diff > threshold # check the scalar component of the quaternion
     
-    # helper function to determine if the pose is different around the x axis only
+    # helper function to determine if the pose is sufficiently rotated around the x axis
     def _is_different_pose_x(self, quat1, quat2, threshold=45):
-        # Normalize the quaternions
-        quat1 = self._normalize_quat(quat1)
-        quat2 = self._normalize_quat(quat2)
-
-        # Calculate the distance between the two quaternions
-        quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
+        
+        rx,_,_ = self._find_orientation_difference_euler_angles(quat1, quat2)
 
         # The scalar component of the quaternion is closer to 1 if the rotation is small and vice versa
         # Therefore if the rotation is smaller than the threshold the scalar component will be bigger than
         # the cosine of the threshold
-        return np.abs(quat_diff[1]) > np.sin((threshold * np.pi) / 360)
+        return np.abs(rx) > threshold # check the x rotation component
 
-    # helper function to convert euler to rotational matricies
-    @staticmethod
-    def _euler_to_rot_matrix(ax, ay, az):
-        """Converts Euler angles (ax, ay, az) to a rotation matrix"""
-        Rx = np.array([[1, 0, 0],
-                       [0, np.cos(ax), -np.sin(ax)],
-                       [0, np.sin(ax), np.cos(ax)]])
-        
-        Ry = np.array([[np.cos(ay), 0, np.sin(ay)],
-                       [0, 1, 0],
-                       [-np.sin(ay), 0, np.cos(ay)]])
-        
-        Rz = np.array([[np.cos(az), -np.sin(az), 0],
-                       [np.sin(az), np.cos(az), 0],
-                       [0, 0, 1]])
-        
-        # Combined rotation matrix
-        return np.dot(np.dot(Rz, Ry), Rx)
-    
-        # Quaternion operations that the find_poses function requres
     
     #Returns the conjugate of a quaternion
     @staticmethod

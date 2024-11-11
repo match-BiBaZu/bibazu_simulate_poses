@@ -16,7 +16,7 @@ class DroptestsFaster:
         self.surface_name = 'Plane'
 
         # This is the total number of simulations - usually 1000
-        self.simulation_number = 1000
+        self.simulation_number = 50
 
         #--------------------------------------------------------------------------
         # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -123,13 +123,13 @@ class DroptestsFaster:
         return workpiece_start_orientation
 
     @staticmethod
-    def is_over_location(workpiece_hitpoint, nozzle_position):
+    def is_workpiece_over_nozzle_x(workpiece_position, nozzle_position):
 
-        position_error_threshold = 0.01
+        workpiece_extent = 0.03
         # Calculate the Euclidean distance between the workpiece hitpoint and the nozzle position
-        distance = workpiece_hitpoint[1] - nozzle_position[1]
-        # print(f"Distance between workpiece hitpoint and nozzle position: {distance}")
-        return abs(distance) < position_error_threshold
+        distance = workpiece_position[0] - nozzle_position[0]
+        #print(f"Distance between workpiece hitpoint and nozzle position: {distance}")
+        return abs(distance) < workpiece_extent
 
     def drop_tests(self):
         simulation_steps = 1500 # Define the maximum number of simulation steps
@@ -214,7 +214,6 @@ class DroptestsFaster:
         workpiece_collision_id = p.createCollisionShape(
             shapeType=p.GEOM_MESH,          # Specify that this is a mesh
             fileName=str(self.workpiece_path / (self.workpiece_name + '.obj')),  # Path to your OBJ file
-            flags= p.GEOM_CONCAVE_INTERNAL_EDGE # Use concave hull shape for collision
         )
 
         # Create a visual shape for the workpiece (optional, for rendering in the GUI)
@@ -267,10 +266,10 @@ class DroptestsFaster:
         # ----------------------------------------------------------------------------   
 
         # Enable visualizing collision shapes
-        p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, 1)
+        #p.configureDebugVisualizer(p.COV_ENABLE_WIREFRAME, 1)
 
         # Enable the GUI and other visualizations if needed
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        #p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
 
         # Draw a sphere at the adjusted COM to visualize it
         #com_visual_shape = p.createVisualShape(p.GEOM_SPHERE, radius=0.05, rgbaColor=[1, 0, 0, 1])  # Red sphere
@@ -281,13 +280,13 @@ class DroptestsFaster:
         #)
 
         # Add the vector as a debug line in PyBullet
-        p.addUserDebugLine(
-            nozzle_position,
-            [nozzle_position[i] + nozzle_direction[i] for i in range(3)],  # End point of the vector
-            lineColorRGB=[0.1, 0, 0],  # Color of the vector (red)
-            lineWidth=3,             # Line width
-            lifeTime=0               # Duration the line will persist, 0 for infinite
-        )
+        #p.addUserDebugLine(
+        #    nozzle_position,
+        #    [nozzle_position[i] + nozzle_direction[i] for i in range(3)],  # End point of the vector
+        #    lineColorRGB=[0.1, 0, 0],  # Color of the vector (red)
+        #    lineWidth=3,             # Line width
+        #    lifeTime=0               # Duration the line will persist, 0 for infinite
+        #)
         # Update the COM marker position in each simulation step
         def update_com_marker():
             com_position, _ = p.getBasePositionAndOrientation(workpiece_id)
@@ -339,8 +338,8 @@ class DroptestsFaster:
         matrix_location = []
 
         pre_impulse_angular_velocity = np.zeros(3)
-        pre_impulse_orientation = np.ones(4) * 1000000
-        pre_impulse_location = np.ones(3) * 1000000
+        pre_impulse_orientation = np.zeros(4)
+        pre_impulse_location = np.zeros(3)
 
         angular_velocity_buffer = np.zeros(3)
         quaternion_buffer = np.zeros(4)
@@ -388,8 +387,8 @@ class DroptestsFaster:
                     linear_velocity, angular_velocity = p.getBaseVelocity(workpiece_id)
 
                     # Smooth the angular velocity using a moving average
-                    angular_velocity_buffer = np.vstack((angular_velocity_buffer, angular_velocity))
-                    quaternion_buffer = np.vstack((quaternion_buffer, blender_orientation))
+                    angular_velocity_buffer = np.vstack((np.copy(angular_velocity_buffer), angular_velocity))
+                    quaternion_buffer = np.vstack((np.copy(quaternion_buffer), blender_orientation))
 
                     if angular_velocity_buffer.shape[0] > 10:
                         angular_velocity_buffer = angular_velocity_buffer[-10:]
@@ -405,9 +404,20 @@ class DroptestsFaster:
                     if self.mode == 0:
                         time.sleep(1 / 240.)
 
-                    # Check if CoG is over impulse location
-                    if self.is_over_location(workpiece_hitpoint, nozzle_position) and not impulse_applied:
+                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
+                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.01 and len(contact_points) > 0:
+                        #print(f"Workpiece stable orientation: {orientation_smoothed}")
+                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
+                        break
+
+                    # Check if the workpiece is stable before the impulse is applied
+                    if  not impulse_applied and max(abs(angular_velocity_smoothed)) < 0.01 and len(contact_points) > 0:
                         pre_impulse_orientation = orientation_smoothed
+
+                        # Apply the surface rotation to the local nozzle position
+                        nozzle_position, _ = p.multiplyTransforms([0, 0, 0], surface_rotation, [self.nozzle_offset_perpendicular,0,0], [0, 0, 0, 1])
+
+                        p.resetBasePositionAndOrientation(nozzle_marker, [nozzle_position[0],position[1],position[2]], [0, 0, 0, 1])
                         #print(f"Workpiece pre impulse orientation: {pre_impulse_orientation}")
 
                         pre_impulse_angular_velocity = angular_velocity_smoothed
@@ -418,23 +428,25 @@ class DroptestsFaster:
                         workpiece_data.writelines(f"Simulated Location (XYZ) [mm]: {workpiece_position[0]}, {workpiece_position[1]}, {workpiece_position[2]}\n")
                         workpiece_data.writelines(f"Simulated Angular Velocity (XYZ) [rad/s]: {angular_velocity_smoothed[0]}, {angular_velocity_smoothed[1]}, {angular_velocity_smoothed[2]}\n")                           
                         workpiece_data.writelines(f"Simulated Rotation Quaternion (w, x, y, z): {orientation_smoothed[0]}, {orientation_smoothed[1]}, {orientation_smoothed[2]}, {orientation_smoothed[3]}\n")
-                    
-                        # Apply impulse force to the workpiece hit point
-                        p.applyExternalForce(workpiece_id, -1, nozzle_force, nozzle_position , p.WORLD_FRAME)
+                        
+                        # To simulate the impulse force applied by the nozzle
+                        if self.is_workpiece_over_nozzle_x(position, nozzle_position):
+                            #print("Workpiece is over the nozzle")
+                            #print("nozzle force", nozzle_force)   
+                            # Apply impulse force to the workpiece hit point
+                            p.applyExternalForce(workpiece_id, -1, nozzle_force, [nozzle_position[0], position[1] + self.hitpoint_offset_parallel, position[2]] , p.WORLD_FRAME)
+                            
+                        # Set the impulse applied flag to True as if the impulse was applied
                         #print("impulse applied")
                         impulse_applied = True
                     else:
                         # Ensure no force is applied when not over the location
-                        p.applyExternalForce(workpiece_id, -1, [0, 0, 0], nozzle_position , p.WORLD_FRAME)
-
-                    # Stop the simulation when the workpiece reaches equilibrium on the slide after impulse application
-                    if impulse_applied and max(abs(angular_velocity_smoothed)) < 0.1 and len(contact_points) > 0:
-                        #print(f"Object '{self.workpiece_name}' reached equilibrium at step {step} with contact")
-                        break
+                        p.applyExternalForce(workpiece_id, -1, [0, 0, 0], [0, 0, 0]  , p.WORLD_FRAME)
 
                 #print(f"Simulation {current_simulation}, Step {step}")
                 #print(f"Angular Velocity at Step {step}: {max(abs(angular_velocity_smoothed))}")
                 #print(f"Number of contact points at step {step}: {len(contact_points)}")
+                #print(f"Workpiece location at simulation {current_simulation}: {workpiece_position[2]}")
                 current_simulation+= 1
                 
                 combined_orientation = np.concatenate((orientation_smoothed, pre_impulse_orientation))                            
