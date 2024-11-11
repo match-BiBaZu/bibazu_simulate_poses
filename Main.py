@@ -50,10 +50,10 @@ nozzle_offset_parallel = 0.5 # offset of the nozzle on one of the slide surfaces
 
 nozzle_offset_perpendicular_array = np.arange(0.0, 0.07, 0.01) # offset of the nozzle on one of the slide surface perpendicular from the sliding axis
 
-nozzle_impulse_force_array = np.arange(4, 11, 1) # impulse force applied by the nozzle to the workpiece to reorient it
+nozzle_impulse_force_array = np.arange(0, 4, 1) # impulse force applied by the nozzle to the workpiece to reorient it
 
 # Define the CSV file name with the workpiece name
-csv_file_name = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / ('simulation_outcomes.csv')
+csv_file_name = script_dir / 'Simulation_Data' / 'Bullet_Raw_Data' / ('simulation_outcomes_new.csv')
 
 # Write the header line to the CSV file
 with open(csv_file_name, 'w') as f:

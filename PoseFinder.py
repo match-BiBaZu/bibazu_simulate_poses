@@ -239,7 +239,7 @@ class PoseFinder:
 
         # Calculate the distance between the two quaternions
         quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
-
+        
         rotm = self._quat_to_rot_matrix(quat_diff)
         # Extract the individual x, y, and z rotation components from the rotation matrix
         rotx = np.degrees(np.arctan2(rotm[2, 1], rotm[2, 2]))
@@ -256,9 +256,9 @@ class PoseFinder:
 
         # Calculate the distance between the two quaternions
         quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
-
+        
         # Extract the axis and angle from the quaternion
-        angle = 2 * np.clip(np.arccos(quat_diff[0]), -1.0, 1.0)
+        angle = 2 * np.arccos(np.clip(quat_diff[0], -1.0, 1.0))
         # Check if the sine term is above a threshold to avoid division by zero
         if np.abs(np.sin(angle / 2)) > 1e-5:
             axis = quat_diff[1:] / np.sin(angle / 2)
@@ -423,7 +423,10 @@ class PoseFinder:
     # Normalizes a quaternion
     @staticmethod
     def _normalize_quat(quat):
-        return quat / np.linalg.norm(quat)
+        if np.linalg.norm(quat) > 1e-10:  # Small threshold to avoid divide-by-zero
+            return quat / np.linalg.norm(quat)
+        else:
+            return np.array([1, 0, 0, 0])  # Return identity quaternion as a fallback
     
     # This function plots the mesh of the workpiece in different orientations
     def plot_mesh_visualization(self, array_quaternion_pose):
