@@ -258,8 +258,12 @@ class PoseFinder:
         quat_diff = np.abs(self._quat_multiply(quat1, self._quat_conjugate(quat2)))
 
         # Extract the axis and angle from the quaternion
-        angle = 2 * np.arccos(quat_diff[0])
-        axis = quat_diff[1:] / np.sin(angle / 2)
+        angle = 2 * np.clip(np.arccos(quat_diff[0]), -1.0, 1.0)
+        # Check if the sine term is above a threshold to avoid division by zero
+        if np.abs(sin_half_angle) > 1e-5:
+            axis = quat_diff[1:] / np.sin(angle / 2)
+        else:
+            axis = np.array([1, 0, 0])  # Default fallback axis (e.g., x-axis)
 
         #print(f"Angle: {angle}, Axis: {axis}")
 

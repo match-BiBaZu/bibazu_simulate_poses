@@ -33,7 +33,7 @@ workpiece_names = {'Teil_1','Teil_2','Teil_3','Teil_4','Teil_5'}
 surface_name = 'Slide_Long'
 
 # This is the number of simulations
-simulation_number = 50
+simulation_number = 100
 
 #--------------------------------------------------------------------------
 # MODIFIABLE SURFACE AND WORKPIECE PARAMETERS:
@@ -173,5 +173,5 @@ def run_simulation(params):
 
 # Run simulations in parallel using 32 pools
 if __name__ == "__main__":
-    with Pool(1) as pool:
+    with Pool(32) as pool:
         pool.map(run_simulation, parameter_combinations)
